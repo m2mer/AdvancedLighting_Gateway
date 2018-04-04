@@ -29,7 +29,7 @@ void WifiManagement::connectWifi() {
     unsigned int timeOut = 20;
     boolean ledOn = false;
 
-    WiFi.mode(WIFI_STA);
+    //WiFi.mode(WIFI_STA);
 
     if(this->_ssid && this->_password) {
         ssid = (char*)this->_ssid;
@@ -52,6 +52,7 @@ void WifiManagement::connectWifi() {
     }
 
     if((*ssid != 0) && (*password != 0)) {
+        WiFi.mode(WIFI_STA);
         WiFi.begin(ssid, password);
 
         while(timeOut --){
