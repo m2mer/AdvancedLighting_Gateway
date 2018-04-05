@@ -34,18 +34,23 @@ private:
     PubSubClient* mqttClient;
     HardwareSerial* _Serial;
     boolean _isLocal;
-    const char* topicRegister = "device/device_register";
-    const char* topicStatus = "device/status_update";
 
     int operateDevice(byte* payload, unsigned int length);
     int operateMeshAgent(const char* value);
     int operateWifiDevice(const char* action, const char* value);
     int operateLocalDevice(const char* action, const char* value);
-    int getDeviceStatusAll(byte* payload, unsigned int length);
+    int getDeviceOverallStatus(byte* payload, unsigned int length);
+    int getMeshAgentStatus(const char* value);
+    int getWifiDeviceStatus();
+    int getLocalDeviceStatus();
     int meshAgentStatus(char *buf, int length);
+    void _packageMeshAgentMsg(char *buf, char *msg);
+    int meshAgentOverallStatus(char *buf, int length);
+    int meshAgentBriefStatus(char *buf, int length);        
     int wifiDeviceStatus(char *buf, int length);
-    String funcTypeToAttribute(WIFI_DEVICE_FUNCTION_TYPE funcType);
-
+    void _parseAttributeValue(char *buf, String& attribute, String& value);
+    int wifiDeviceOverallStatus(char *buf, int length);
+    int wifiDeviceBriefStatus(char *buf, int length);
 };
 
 
