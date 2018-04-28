@@ -16,13 +16,13 @@
 #define TimeStamp   (String("[") + String(millis()) + String("] "))
 
 /* debug for every feature */
-#define DEBUG_WiFi  Serial
-#define DEBUG_MQTT  Serial
-#define DEBUG_JSON  Serial
+#define DEBUG_WiFi   Serial
+//#define DEBUG_MQTT   Serial
+//#define DEBUG_JSON   Serial
 
 
 #ifndef DEBUG_BAUD_RATE
-#define DEBUG_BAUD_RATE   9600
+#define DEBUG_BAUD_RATE   115200
 #endif
 
 void serial_init();

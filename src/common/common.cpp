@@ -11,4 +11,5 @@
 
  void serial_init(){
    Serial.begin(DEBUG_BAUD_RATE);
+   Serial1.begin(DEBUG_BAUD_RATE);
  }
