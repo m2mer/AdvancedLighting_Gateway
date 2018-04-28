@@ -14,8 +14,7 @@
 
 
 #include <Arduino.h>
-#include "../lib/LinkedList/LinkedList.h"
-
+#include <LinkedList.h>
 
 #include "smartDevice.h"
 #include "smartDevicePacket.h"
@@ -58,6 +57,7 @@ class meshAgent:public smartDevice
 {
 
 public:
+    meshAgent(){};
     meshAgent(byte *mac):smartDevice(mac){};
     ~meshAgent(){_meshNodeList.clear();};
 
