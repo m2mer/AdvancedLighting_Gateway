@@ -189,6 +189,11 @@ int meshAgent::getOverallStatus(byte* payload, unsigned int length)
     return RET_OK;
 }
 
+int meshAgent::getGroupStatus(byte* payload, unsigned int length)
+{
+    //TBD    
+}
+
 /* 
  * interface to receive message of mesh node from peer uart
  * 
