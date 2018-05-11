@@ -30,6 +30,8 @@ typedef struct WiFi_Obj_s{
 }WiFi_Obj_t;
 
 
+typedef void (*smartConfigCb) ();
+
 
 class WifiManagement {
   public:
@@ -39,11 +41,14 @@ class WifiManagement {
     
     void connectWifi();
     void smartConfig();
+    void setSmartCfgCb(smartConfigCb cb);
     void clearEEPROM();
 
   private:
     const char* _ssid = NULL;
     const char* _password = NULL;
+
+    smartConfigCb _cb;
 
     WiFi_Obj_t _wifiValue;
     

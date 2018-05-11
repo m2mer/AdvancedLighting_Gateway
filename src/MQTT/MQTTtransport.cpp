@@ -13,8 +13,6 @@
 #include "common/common.h"
 
 const char *pubTopic = "esp8266.hello_word";
-const char *subTopic = "device/device_operate";
-
 
 
 MQTTtransport::MQTTtransport(Client& client):PubSubClient(client) {
@@ -24,8 +22,9 @@ MQTTtransport::~MQTTtransport() {
 }
 
 void MQTTtransport::setup(const char *server, const char *client, receiveMsgCb cb) {
-    Serial.println(TimeStamp + "start MQTTSetup...");
-    
+    #ifdef DEBUG_MQTT
+    DEBUG_MQTT.println(TimeStamp + "start MQTTSetup...");
+    #endif
     this->_clientId = String("ESP8266-")+String(client);
     
     this->setServer(server, SSDP_PORT);
@@ -47,15 +46,10 @@ void MQTTtransport::reconnect() {
     // Attempt to connect
     if (this->connect(this->_clientId.c_str())) {
     #ifdef DEBUG_MQTT
-      DEBUG_MQTT.println(TimeStamp + "mqtt broker connected");
-      DEBUG_MQTT.print("Wifi status: ");
-      DEBUG_MQTT.println(WiFi.status());
-      DEBUG_MQTT.print("ip: ");
-      DEBUG_MQTT.println(WiFi.localIP());      
+      DEBUG_MQTT.println(TimeStamp + "mqtt broker connected");    
     #endif
       // Once connected, publish an announcement...
       this->publish(pubTopic, "hello world");
-      this->subscribe(subTopic);
     } 
     else 
     {

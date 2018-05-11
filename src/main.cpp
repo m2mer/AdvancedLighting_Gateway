@@ -32,14 +32,24 @@ MQTTtransport MQTTtp(espClient);
 deviceManipulation deviceMp(&localDevice, &MQTTtp, &Serial);
 UARTdriver uartEp;
 
+bool isSmartConfiged = false;
+bool isDeviceRegistered = true;
 
 
 void uartRxHandler(const char *buf, int len) {
-    Serial.printf("\nUart received len %d:\n",len);
+    Serial.printf("\nUart received len %d:\n  ",len);
+    for(int i=0; i<len; i++)
+    {
+        Serial.printf("%02x ", buf[i]);
+    }
 
     deviceMp.receiveUARTmsg((byte*)buf, len);
 }
 
+void smartConfigDone() {
+    isSmartConfiged = true;
+    isDeviceRegistered = false;
+}
 
 void receiveMQTTmsg(char* topic, byte* payload, unsigned int length) {
     #ifdef DEBUG_MQTT
@@ -70,7 +80,10 @@ void setup() {
 
     //WifiManagement WifiMg(DEFAULT_WIFI_SSID, DEFAULT_WIFI_PASSWORD);
     delay(3000);
+    WifiMg.setSmartCfgCb(smartConfigDone);
     WifiMg.connectWifi();
+    smartConfigDone();
+
     MQTTtp.setup(mqtt_server, mqtt_client_name, receiveMQTTmsg);
 }
 
@@ -82,8 +95,17 @@ void loop() {
         if(!MQTTtp.connected())
             MQTTtp.reconnect();
         else
+        {
+            if(!isDeviceRegistered)
+            {
+                localDevice.deviceRegister();
+                isDeviceRegistered = true;
+            }
             MQTTtp.loop();
+        }
+
 #endif
+
         //serialEvent();
 
         uartEp.loop();

@@ -1,5 +1,6 @@
 /*
- * mesh_device_packet.h
+ * smartDevicePacket.h
+ * This file define format of mesh command in MQTT message
  *
  *  Created on: 2018-4-23
  *      Author: xuesong zhang
@@ -23,16 +24,25 @@ typedef enum
 
 typedef enum
 {
-	SMART_LIGHT_TYPE_WC = 1,
-	SMART_LIGHT_TYPE_RGB = 2,
-	SMART_LIGHT_TYPE_RGBW = 3,
-	SMART_LIGHT_TYPE_RGBWC = 4,
-}SMART_LIGHT_TYPE;
+	SMART_SERVICE_DEFAULT = 0,
+	SMART_LIGHT_TYPE_W = 1,
+	SMART_LIGHT_TYPE_WC = 2,
+	SMART_LIGHT_TYPE_RGB = 3,
+	SMART_LIGHT_TYPE_RGBW = 4,
+	SMART_LIGHT_TYPE_RGBWC = 5,
+}SMART_SERVICE_TYPE;
 
 typedef struct {
 	uint8_t firstType;
 	uint8_t secondType;
 }DEVICE_TYPE;
+
+typedef enum {
+	SMART_LIGHT_MODE_W = 1,
+	SMART_LIGHT_MODE_WC = 2,
+	SMART_LIGHT_MODE_RGB = 3,
+	SMART_LIGHT_MODE_SCENE = 4,
+}SMART_LIGHT_MODE;
 
 
 typedef struct {
@@ -42,11 +52,12 @@ typedef struct {
 }DEVICE_COLOR;
 
 typedef union {
+	uint8_t offline;
     uint8_t onoff;
     uint8_t lightness;
+    uint8_t mode;
     uint16_t temperature;
     DEVICE_COLOR color;
-    uint8_t mode;
     uint16_t timerOn;
     uint16_t timerOff;
 }DEVICE_FUNCTION_PARA;
@@ -82,7 +93,7 @@ typedef enum {
 	MESH_DEVICE_FUNCTION_TIMER_ON = 5,
 	MESH_DEVICE_FUNCTION_TIMER_OFF = 6,
 	MESH_DEVICE_FUNCTION_GROUP_CFG = 7,
-	MESH_DEVICE_FUNCTION_HEARTBEAT = 8,
+	MESH_DEVICE_FUNCTION_OFFLINE = 8,
 	MESH_DEVICE_FUNCTION_HEELIGHT = 9,
 }MESH_DEVICE_FUNCTION_TYPE;
 
@@ -102,7 +113,7 @@ typedef struct {
 
 typedef struct {
 	uint8_t command;
-	uint8_t reserved;    //for padding
+	uint8_t sequence;
 	uint8_t mac[6];
 }MESH_DEVICE_GET_STATUS;
 
@@ -125,6 +136,12 @@ typedef struct {
 	uint8_t sequence;
 	MESH_NODE_OVERALL_STATUS status;
 }MESH_DEVICE_OVERALL_STATUS;
+
+typedef struct {
+	uint8_t command;
+	uint8_t sequence;
+	uint8_t mac[6];
+}MESH_DEVICE_RESET_FACTORY;
 
 
 #endif /* smartDevicePacket_H */ 

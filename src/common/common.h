@@ -17,7 +17,7 @@
 
 /* debug for every feature */
 #define DEBUG_WiFi   Serial
-//#define DEBUG_MQTT   Serial
+#define DEBUG_MQTT   Serial
 //#define DEBUG_JSON   Serial
 
 

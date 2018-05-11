@@ -31,6 +31,7 @@ typedef enum {
     PUB_TOPIC_GROUP_STATUS = 7,
     PUB_TOPIC_DEVICE_REGISTER = 8,
     PUB_TOPIC_DEVICE_HEARBEAT = 9,
+    PUB_TOPIC_RESET_FACTORY = 10,
 }DEVICE_MQTT_TOPIC;
 
 
@@ -53,7 +54,7 @@ public:
     void heartbeat();
     void deviceRegister();
     char* getMQTTtopic(DEVICE_MQTT_TOPIC topic);
-    void setMQTTtopic();
+    void setMQTTDynTopic();
 
     /* handle mqtt message */
     void receiveMQTTmsg(char* topic, byte* payload, unsigned int length);
@@ -78,9 +79,11 @@ private:
     char _topicGrpSt[64];
     char _topicRegister[64];
     char _topicHeartbeat[64];
+    char _topicRstFactory[64];
     uint32_t _lastHeartbeat;
 
     void init();
+    int registrationNotify(byte* payload, unsigned int length);
 
     virtual int operateDevice(byte* payload, unsigned int length){};
     virtual int getOverallStatus(byte* payload, unsigned int length){};

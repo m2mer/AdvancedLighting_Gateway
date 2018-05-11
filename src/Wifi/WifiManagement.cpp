@@ -23,6 +23,10 @@ WifiManagement::WifiManagement(const char* ssid, const char* password) {
 WifiManagement::~WifiManagement() {
 }
 
+void WifiManagement::setSmartCfgCb(smartConfigCb cb) {
+    _cb = cb;
+}
+
 void WifiManagement::connectWifi() {
     char* ssid = NULL;
     char* password = NULL;
@@ -108,7 +112,11 @@ void WifiManagement::smartConfig(){
             DEBUG_WiFi.printf("SSID: %s\r\n", WiFi.SSID().c_str());
             DEBUG_WiFi.printf("PSW: %s\r\n", WiFi.psk().c_str());
             #endif
-        
+
+            /* smartconfig done callback */
+            _cb();
+
+            /* store to EEPROM */
             clearEEPROM();
             storeWifiToEEPROM();
             break;

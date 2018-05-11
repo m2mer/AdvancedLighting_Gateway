@@ -7,6 +7,8 @@
  
  */
 
+#include <ArduinoJson.h>
+
 #include "smartDevice.h"
 
 
@@ -82,32 +84,46 @@ void smartDevice::heartbeat()
 void smartDevice::deviceRegister() 
 {
     uint8 mac[6];
-    char mac_str[12] = {0};
+    char mac_str[13] = {0};
+    char firstType[3] = {0};
+    char secondType[3] = {0};
     char msg[256] = {0};
+
+    /* subscribe registration_notify first */
+    _deviceMp->mqttSubscribe(_topicRegNoti);
 
     getMacAddress(mac);
     DEBUG_DEVICE.printf("get mac %0x%0x%0x%0x%0x%0x\n", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
 
-    sprintf(msg, "{\"type\":\"lamp\",\"vendor\":\"ht\",\"MAC\":\"");
+    itoa(this->_type.firstType, firstType, 10);
+    itoa(this->_type.secondType, secondType, 10);
     sprintf(mac_str, "%0x%0x%0x%0x%0x%0x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
 
+    strcat(msg, "{\"firstType\":\"");
+    strcat(msg, firstType);
+    strcat(msg,"\",\"secondType\":\"");
+    strcat(msg, secondType);
+    strcat(msg, "\",\"vendor\":\"AISmart\",\"MAC\":\"");
     strcat(msg, mac_str);
     strcat(msg, "\"}");
-
-    DEBUG_DEVICE.printf("\nbegin to pub %s\n", msg);
     _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_DEVICE_REGISTER), msg);
-
+    DEBUG_DEVICE.printf("pub device register %s\n", msg);
 }
 
 void smartDevice::receiveMQTTmsg(char* topic, byte* payload, unsigned int length)
 {
-    DEBUG_DEVICE.printf("%s, topic %s, payload %s, len %d\n", __FUNCTION__, topic, payload, length);
-    if(strcmp(topic, "device/device_operate") == 0)
-        operateDevice(payload, length);
-    else if(strcmp(topic, "device/get_status") == 0)
-        getOverallStatus(payload, length);
-    else if(strcmp(topic, "device/get_group_status") == 0)
-        getGroupStatus(payload, length);
+    byte valid[256] = {0};
+    memcpy(valid, payload, length);
+    DEBUG_DEVICE.printf("%s, topic %s, payload %s, len %d\n", __FUNCTION__, topic, valid, length);
+
+    if(strcmp(topic, getMQTTtopic(SUB_TOPIC_REGISTER_NOTIFY)) == 0)
+        registrationNotify(valid, length);
+    else if(strcmp(topic, getMQTTtopic(SUB_TOPIC_DEVICE_OPERATE)) == 0)
+        operateDevice(valid, length);
+    else if(strcmp(topic, getMQTTtopic(SUB_TOPIC_GET_STATUS)) == 0)
+        getOverallStatus(valid, length);
+    else if(strcmp(topic, getMQTTtopic(SUB_TOPIC_GET_GROUP_STATUS)) == 0)
+        getGroupStatus(valid, length);
 }
 
 
@@ -123,13 +139,15 @@ void smartDevice::init()
     memset(_topicHeartbeat, 0, 64);
     memset(_topicRegister, 0, 64);     
 
+    memcpy(_topicRegister, "device/device_register", 64);
+    memcpy(_topicRegNoti, "device/registration_notify", 64);
+
     _lastHeartbeat = 0;              
 }
 
-void smartDevice::setMQTTtopic()
+void smartDevice::setMQTTDynTopic()
 {
-    /* sub topics */
-    memcpy(_topicRegNoti, "device/register_notify", 64);    
+    /* sub topics */    
     memcpy(_topicDevOp, "device/device_operate", 64);
     memcpy(_topicGetSt, "device/get_status", 64);
     memcpy(_topicGetGrpSt, "device/get_group_status", 64); 
@@ -138,8 +156,8 @@ void smartDevice::setMQTTtopic()
     memcpy(_topicStUpd, "device/status_update", 64);
     memcpy(_topicOvaSt, "device/status_reply", 64);           
     memcpy(_topicGrpSt, "device/status_group", 64);
-    memcpy(_topicRegister, "device/device_register", 64);
-    memcpy(_topicHeartbeat, "device/heartbeat", 64);        
+    memcpy(_topicHeartbeat, "device/heartbeat", 64);
+    memcpy(_topicRstFactory, "device/reset_factory", 64);          
 }
 
 char* smartDevice::getMQTTtopic(DEVICE_MQTT_TOPIC topic)
@@ -164,5 +182,30 @@ char* smartDevice::getMQTTtopic(DEVICE_MQTT_TOPIC topic)
             return _topicRegister;
         case PUB_TOPIC_DEVICE_HEARBEAT:
             return _topicHeartbeat;
+        case PUB_TOPIC_RESET_FACTORY:
+            return _topicRstFactory;
     }
+}
+
+int smartDevice::registrationNotify(byte* payload, unsigned int length)
+{
+    StaticJsonBuffer<200> jsonBuffer;
+    JsonObject& data = jsonBuffer.parse(payload);
+    if(!data.success()){
+        return RET_ERROR;
+    }
+
+    const char* uuid = data["UUID"];
+    const char* userId = data["userId"];
+    DEBUG_DEVICE.printf("%s, UUID %s, userId %s\n", __FUNCTION__, uuid, userId);
+
+    setUserId(userId);
+    setMQTTDynTopic();
+
+    _deviceMp->mqttUnsubscribe(_topicRegNoti);
+
+    _deviceMp->mqttSubscribe(_topicGetSt);
+    _deviceMp->mqttSubscribe(_topicDevOp);
+    _deviceMp->mqttSubscribe(_topicGetGrpSt);
+
 }

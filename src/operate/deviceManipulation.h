@@ -33,6 +33,7 @@ public:
     ~deviceManipulation(){};
     
     void mqttSubscribe(char* topic);
+    void mqttUnsubscribe(char* topic);
     void mqttPublish(char* topic, char* msg);
 
     int receiveMQTTmsg(char* topic, byte* payload, unsigned int length);

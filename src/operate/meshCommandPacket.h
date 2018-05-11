@@ -1,5 +1,6 @@
 /*
  * meshCommandPacket.h
+ * This file defines mesh commands in mesh network
  *
  *  Created on: 2018-4-24
  *      Author: xuesong zhang
@@ -27,28 +28,27 @@
 #define         LGT_CMD_ADVLIGHT_GROUP_UPDT         0x37
 #define         LGT_CMD_ADVLIGHT_OVERALL_STATUS     0x38
 #define         LGT_CMD_ADVLIGHT_GROUP_STATUS       0x39
-#define         LGT_CMD_ADVLIGHT_HEARTBEAT          0x3a
+#define         LGT_CMD_ADVLIGHT_RESET_FACTORY      0x3a
 
 
 
 
 typedef struct {
-	uint16_t devAddr;
 	uint8_t funcType;
 	uint8_t funcPara[5];           //compatible for heelight command
 }MESH_COMMAND_OPERATION;
 
 typedef struct {
+	uint16_t gwDevAddr;
+	uint16_t ndDevAddr;
 	uint8_t mac[6];
 }MESH_COMMAND_GET_STATUS;
 
 typedef struct {
-	uint16_t devAddr;
 	uint8_t sequence;
 	uint8_t funcType;
 	DEVICE_FUNCTION_PARA funcPara;
 }MESH_COMMAND_STATUS_UPDATE;
-
 
 typedef enum {
 	MESH_OVERALL_STATUS_I = 0,
@@ -61,18 +61,24 @@ typedef enum {
  * 8 bytes status, 2 bytes kept for segment and sequence
  * */
 typedef struct {
-	uint16_t deviceAddr;	
 	uint8_t mac[6];
+	uint8_t firstType;
+	uint8_t secondType;
 }MESH_COMMAND_OVERALL_STATUS_I;
 
 typedef struct {
-	uint16_t deviceAddr;
-	uint8_t firstType;
-	uint8_t secondType;
     uint8_t group;
     uint8_t onoff;
     uint8_t lightness;
     uint8_t mode;
+	union{
+	    uint16_t temperature;
+	    struct{
+	        uint16_t h;
+	        uint8_t s;
+	        uint8_t v;
+	    }color;
+	}rgbcw;
 }MESH_COMMAND_OVERALL_STATUS_II;
 
 typedef struct {
@@ -103,5 +109,9 @@ typedef struct {
 }MESH_COMMAND_OVERALL_STATUS;
 
 
+typedef struct {
+	uint8_t sequence;
+	uint8_t reserved;	//padding
+}MESH_COMMAND_RESET_FACTORY;
 
 #endif

@@ -10,8 +10,6 @@
 #include "deviceManipulation.h"
 #include "uartProtocolPacket.h"
 
-#define DEBUG_DEVICE Serial1
-
 
 
 deviceManipulation::deviceManipulation(smartDevice *device, PubSubClient *mqttClient, HardwareSerial* serial) {
@@ -25,6 +23,11 @@ void deviceManipulation::mqttSubscribe(char *topic)
     mqttClient->subscribe(topic);
 }
 
+void deviceManipulation::mqttUnsubscribe(char* topic)
+{
+    mqttClient->unsubscribe(topic);
+}
+
 void deviceManipulation::mqttPublish(char* topic, char* msg)
 {
     mqttClient->publish(topic, msg);
@@ -35,10 +38,8 @@ void deviceManipulation::mqttPublish(char* topic, char* msg)
 */
 int deviceManipulation::receiveMQTTmsg(char* topic, byte* payload, unsigned int length) {
     DEBUG_DEVICE.printf("%s, topic %s, payload %s, len %d\n", __FUNCTION__, topic, payload, length);
-    if(strcmp(topic, "device/device_operate") == 0 
-        || strcmp(topic, "device/get_status") == 0
-        || strcmp(topic, "device/get_group_status") == 0)
-        this->_device->receiveMQTTmsg(topic, payload, length);
+
+    this->_device->receiveMQTTmsg(topic, payload, length);
 }
 
 /*
@@ -71,6 +72,8 @@ void deviceManipulation::sendUartProtocolData(byte *protData)
 {
     int len = 0;
 
+    DEBUG_DEVICE.printf("%s", __FUNCTION__);
+
     byte buf[sizeof(UART_PROTOCOL_DATA)+10] = {0};
 
     memcpy(buf, "smart", 5);
@@ -79,6 +82,13 @@ void deviceManipulation::sendUartProtocolData(byte *protData)
     len += sizeof(UART_PROTOCOL_DATA);
     memcpy(&buf[len], "trams", 5);
     len += 5;
+
+    DEBUG_DEVICE.printf("send: ");
+    for(int i=0; i<len; i++)
+    {
+        DEBUG_DEVICE.printf("%02x", buf[i]);
+    }
+    DEBUG_DEVICE.println();
 
     _Serial->write(buf, len);
 }

@@ -20,6 +20,19 @@
 #include "smartDevicePacket.h"
 
 
+#define DEBUG_MESH Serial
+
+
+
+template <typename T>
+class advLinkedList:public LinkedList<T> 
+{
+
+public:
+    ListNode<T> * getNodePtr(int index);
+};
+
+
 /*
  * this is to aggregate segments of overall_status message from mesh node 
 */
@@ -44,6 +57,7 @@ public:
 
     uint16_t getDevAddr();
     boolean aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg);
+    void clearAggregateStatus();
 
 private:
     uint16_t _devAddr;
@@ -57,8 +71,8 @@ class meshAgent:public smartDevice
 {
 
 public:
-    meshAgent(){};
-    meshAgent(byte *mac):smartDevice(mac){};
+    meshAgent();
+    meshAgent(byte *mac);
     ~meshAgent(){_meshNodeList.clear();};
 
     boolean isMeshNodeExist(byte *mac);
@@ -72,8 +86,9 @@ public:
 
 private:
 
-    LinkedList<meshNode> _meshNodeList;
-    //meshNode* _meshNodePool[256];    // alternative method
+    //LinkedList<meshNode> _meshNodeList;
+    advLinkedList<meshNode> _meshNodeList;
+    //meshNode* _meshNodePool[256];    // alternative method to maintain mesh nodes
 
     /* handle mqtt message */
     int operateDevice(byte* payload, unsigned int length);
@@ -81,9 +96,10 @@ private:
     int getGroupStatus(byte* payload, unsigned int length);
 
     /* handle message from peer uart */    
-    void recvStatusUpdate(byte *buf);
-    void recvOverallStatus(byte *buf);
+    void recvStatusUpdate(uint16_t nodeAddr, byte *buf);
+    void recvOverallStatus(uint16_t nodeAddr, byte *buf);
     void recvGroupStatus(byte *buf);
+    void recvResetFactory(uint16_t nodeAddr, byte *buf);
 
     int _atoi(char a);
     void _getMeshCommandBinary(const char *buf, byte *bin);
