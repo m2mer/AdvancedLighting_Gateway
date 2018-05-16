@@ -39,14 +39,15 @@ public:
     int receiveMQTTmsg(char* topic, byte* payload, unsigned int length);
     int receiveUARTmsg(byte *buf, int length);
     void sendUartProtocolData(byte *protData);
-
+    boolean validUartProtocol(byte *data, int length);
     void testOperateMeshAgent();
 
 private:
     PubSubClient* mqttClient;
     HardwareSerial* _Serial;
     smartDevice *_device;
-
+    byte _uartBuf[128] = {0};
+    uint8_t _uartBufOff = 0;
 };
 
 

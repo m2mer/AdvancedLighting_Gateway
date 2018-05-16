@@ -30,7 +30,10 @@ void deviceManipulation::mqttUnsubscribe(char* topic)
 
 void deviceManipulation::mqttPublish(char* topic, char* msg)
 {
-    mqttClient->publish(topic, msg);
+    if(mqttClient->publish(topic, msg))
+        Serial1.printf("publish success\n");
+    else
+        Serial1.printf("publish fail\n");
 }
 
 /*
@@ -42,6 +45,15 @@ int deviceManipulation::receiveMQTTmsg(char* topic, byte* payload, unsigned int 
     this->_device->receiveMQTTmsg(topic, payload, length);
 }
 
+boolean deviceManipulation::validUartProtocol(byte *data, int length)
+{
+    if(strncmp((const char*)data, UART_PROTOCOL_HEAD, UART_PROTOCOL_HEAD_LEN) != 0 
+        || strncmp((const char*)&data[length-UART_PROTOCOL_TAIL_LEN], UART_PROTOCOL_TAIL, UART_PROTOCOL_TAIL_LEN) != 0)
+        return false;
+
+    return true;
+}
+
 /*
  * Interface to handle UART message from peer device
 */
@@ -50,22 +62,49 @@ int deviceManipulation::receiveUARTmsg(byte *buf, int length) {
     uint8_t protType = 0;
     byte *payload = NULL;
 
-    if(strncmp((const char*)buf, UART_PROTOCOL_HEAD, UART_PROTOCOL_HEAD_LEN) != 0 
-        || strncmp((const char*)&buf[length-UART_PROTOCOL_TAIL_LEN], UART_PROTOCOL_TAIL, UART_PROTOCOL_TAIL_LEN) != 0)
-        return RET_ERROR;
+    DEBUG_DEVICE.printf("UART RX, len %d\n", length);
 
-    DEBUG_DEVICE.printf("%s, len %d\n", __FUNCTION__, length);
+    if(validUartProtocol(buf, length))
+    {
+        memcpy(&_uartBuf[0], buf, length);
+        _uartBufOff = length;
+    }
+    else if(strncmp((const char*)buf, UART_PROTOCOL_HEAD, UART_PROTOCOL_HEAD_LEN) == 0)
+    {
+        memcpy(&_uartBuf[0], buf, length);
+        _uartBufOff = length; 
+        return RET_ERROR;           
+    }    
+    else if(_uartBufOff != 0)
+    {
+        if(_uartBufOff+length > 128)
+        {
+            memset(_uartBuf, 0, 128);            
+            _uartBufOff = 0;
+            return RET_ERROR;
+        }
 
-    protData = (UART_PROTOCOL_DATA*)&buf[UART_PROTOCOL_HEAD_LEN];
+        memcpy(&_uartBuf[_uartBufOff], buf, length);
+        if(!validUartProtocol(_uartBuf, _uartBufOff+length))
+        {
+            _uartBufOff += length;
+            return RET_ERROR;
+        }
+    }
+
+    protData = (UART_PROTOCOL_DATA*)&_uartBuf[UART_PROTOCOL_HEAD_LEN];
     protType = protData->protType;
 
     if(protType == PROTOCOL_TYPE_WIFI_DEVICE_STATUS) {
-        this->_device->receiveUARTmsg((byte*)&protData->protPayload, length-UART_PROTOCOL_FLAG_LEN-2);
+        this->_device->receiveUARTmsg((byte*)&protData->protPayload, _uartBufOff-UART_PROTOCOL_FLAG_LEN-2);
     }
     else if(protType == PROTOCOL_TYPE_MESH_AGENT_STATUS) {        
-        this->_device->receiveUARTmsg((byte*)&protData->protPayload, length-UART_PROTOCOL_FLAG_LEN-2);
+        this->_device->receiveUARTmsg((byte*)&protData->protPayload, _uartBufOff-UART_PROTOCOL_FLAG_LEN-2);
     }    
  
+    memset(_uartBuf, 0, 128);
+    _uartBufOff = 0;
+    return RET_OK;
 }
 
 void deviceManipulation::sendUartProtocolData(byte *protData)

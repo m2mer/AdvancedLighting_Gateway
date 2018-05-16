@@ -20,7 +20,7 @@
 #include "smartDevicePacket.h"
 
 
-#define DEBUG_MESH Serial
+#define DEBUG_MESH Serial1
 
 
 
@@ -50,7 +50,7 @@ class meshNode:public smartDevice
 {
 
 public:
-    meshNode(){};      //for LinkedList.get() bug
+    meshNode();      //for LinkedList.get() bug
     meshNode(uint16_t devAddr);
     meshNode(byte *mac, uint16_t devAddr);
     ~meshNode(){};
@@ -58,12 +58,15 @@ public:
     uint16_t getDevAddr();
     boolean aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg);
     void clearAggregateStatus();
+    int checkStatusUpdateSeq(uint8_t sequence);
 
 private:
     uint16_t _devAddr;
     uint32_t _lastActive;
     OVERALL_STATUS_AGGREGATION _stAgg;
+    uint8_t _stUpdSeq;
 
+    void init();
 };
 
 
@@ -86,6 +89,7 @@ public:
 
 private:
 
+    uint8_t _meshMAC[6];
     //LinkedList<meshNode> _meshNodeList;
     advLinkedList<meshNode> _meshNodeList;
     //meshNode* _meshNodePool[256];    // alternative method to maintain mesh nodes
@@ -99,7 +103,8 @@ private:
     void recvStatusUpdate(uint16_t nodeAddr, byte *buf);
     void recvOverallStatus(uint16_t nodeAddr, byte *buf);
     void recvGroupStatus(byte *buf);
-    void recvResetFactory(uint16_t nodeAddr, byte *buf);
+    //void recvResetFactory(uint16_t nodeAddr, byte *buf);
+    void recvPairedNotify(byte *buf);
 
     int _atoi(char a);
     void _getMeshCommandBinary(const char *buf, byte *bin);

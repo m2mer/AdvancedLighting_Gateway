@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 
+#define BUTTON_RESET  5  //D1
 
 #define LED_WIFI  14  //nodemcu D5
 #define LED_MQTT  12  //nodemcu D6

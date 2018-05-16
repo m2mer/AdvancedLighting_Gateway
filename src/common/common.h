@@ -16,8 +16,8 @@
 #define TimeStamp   (String("[") + String(millis()) + String("] "))
 
 /* debug for every feature */
-#define DEBUG_WiFi   Serial
-#define DEBUG_MQTT   Serial
+#define DEBUG_WiFi   Serial1
+#define DEBUG_MQTT   Serial1
 //#define DEBUG_JSON   Serial
 
 

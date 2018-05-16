@@ -49,7 +49,7 @@ void MQTTtransport::reconnect() {
       DEBUG_MQTT.println(TimeStamp + "mqtt broker connected");    
     #endif
       // Once connected, publish an announcement...
-      this->publish(pubTopic, "hello world");
+      //this->publish(pubTopic, "hello world");
     } 
     else 
     {

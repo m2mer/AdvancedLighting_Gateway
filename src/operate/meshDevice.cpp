@@ -17,16 +17,18 @@
 template<typename T>
 ListNode<T>* advLinkedList<T>::getNodePtr(int index)
 {
-    return this->getNode(index);
+    return this->getNode(index);    //must this->
 }
 
 meshAgent::meshAgent()
 {
-    this->setDeviceType(SMART_DEVICE_TYPE_MESH_GATEWAY, SMART_SERVICE_DEFAULT);
+    setDeviceType(SMART_DEVICE_TYPE_MESH_GATEWAY, SMART_SERVICE_DEFAULT);
+    //setDeviceType(SMART_DEVICE_TYPE_MESH_LIGHT, SMART_LIGHT_MODE_RGB);   
 }
 meshAgent::meshAgent(byte *mac):smartDevice(mac)
 {
-    this->setDeviceType(SMART_DEVICE_TYPE_MESH_GATEWAY, SMART_SERVICE_DEFAULT);    
+    setDeviceType(SMART_DEVICE_TYPE_MESH_GATEWAY, SMART_SERVICE_DEFAULT);   
+    //setDeviceType(SMART_DEVICE_TYPE_MESH_LIGHT, SMART_LIGHT_MODE_RGB);     
 }
 
 boolean meshAgent::isMeshNodeExist(byte *mac)
@@ -238,6 +240,7 @@ void meshAgent::receiveUARTmsg(byte *buf, int len)
     for(int i=0; i<len; i++) {
         DEBUG_MESH.printf("%02x ", buf[i]);
     }
+    DEBUG_MESH.println();
 
     meshCmd = cmdData->meshCmd;
     nodeAddr = cmdData->devAddr;
@@ -248,8 +251,10 @@ void meshAgent::receiveUARTmsg(byte *buf, int len)
         recvOverallStatus(nodeAddr, (byte*)&cmdData->cmdPara);
     else if(meshCmd == LGT_CMD_ADVLIGHT_GROUP_STATUS)
         recvGroupStatus((byte*)&cmdData->cmdPara);
-    else if(meshCmd == LGT_CMD_ADVLIGHT_RESET_FACTORY)
-        recvResetFactory(nodeAddr, (byte*)&cmdData->cmdPara);        
+    //else if(meshCmd == LGT_CMD_ADVLIGHT_RESET_FACTORY)
+        //recvResetFactory(nodeAddr, (byte*)&cmdData->cmdPara);  
+    else if(meshCmd == LGT_CMD_ADVLIGHT_PAIRED_NOTIFY)
+        recvPairedNotify((byte*)&cmdData->cmdPara);      
 }
 
 /* 
@@ -286,10 +291,13 @@ void meshAgent::recvStatusUpdate(uint16_t nodeAddr, byte *buf)
             if(stPkt.funcType == MESH_DEVICE_FUNCTION_OFFLINE)
                 node->data.clearAggregateStatus();
 
-            /* package into mqtt message and send */
-            _packageMeshAgentMsg((char*)&stPkt, stMsg);
-            _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_STATUS_UPDATE), stMsg);
-            DEBUG_MESH.printf("send update status to cloud\n");
+            if(node->data.checkStatusUpdateSeq(update->sequence) == RET_OK)
+            {
+                /* package into mqtt message and send */
+                _packageMeshAgentMsg((char*)&stPkt, stMsg);
+                _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_STATUS_UPDATE), stMsg);
+                DEBUG_MESH.printf("send update status to cloud\n");
+            }
         }
     }
 }
@@ -314,7 +322,8 @@ void meshAgent::recvOverallStatus(uint16_t nodeAddr, byte *buf)
         DEBUG_MESH.printf("invalid devAddr\n");
         return;
     }
-
+    //deviceRegister();
+    //return;
     for(int i=0; i<cnt; i++)
     {
         ListNode<meshNode> *node = _meshNodeList.getNodePtr(i);
@@ -357,7 +366,7 @@ void meshAgent::recvGroupStatus(byte *buf)
 
     //TBD
 }
-
+#if 0
 
 /* 
  * handle reset_factory notify from mesh node
@@ -400,7 +409,15 @@ void meshAgent::recvResetFactory(uint16_t nodeAddr, byte *buf)
         }
     }
 }
+#endif
 
+void meshAgent::recvPairedNotify(byte *buf)
+{
+    MESH_COMMAND_PAIRED_NOTIFY *notify = (MESH_COMMAND_PAIRED_NOTIFY*) buf;
+
+    memcpy(_meshMAC, notify->mac, 6);
+
+}
 
 int meshAgent::_atoi(char a)
 {
@@ -435,8 +452,6 @@ void meshAgent::_packageMeshAgentMsg(char *buf, char *msg)
     byte mac[6] = {0};
     char uuid[12] = {0};
 
-    DEBUG_DEVICE.printf("%s\n", __FUNCTION__);
-
     getMacAddress(mac);
     sprintf(uuid, "%0x%0x%0x%0x%0x%0x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
 
@@ -454,14 +469,26 @@ void meshAgent::_packageMeshAgentMsg(char *buf, char *msg)
  * meshNode functions
  *
 */
+meshNode::meshNode()
+{
+    init();
+}
+
 meshNode::meshNode(uint16_t devAddr)
 {
     _devAddr = devAddr;
+    init();
 }
 
 meshNode::meshNode(byte *mac, uint16_t devAddr):smartDevice(mac)
 {
     _devAddr = devAddr;
+    init();
+}
+
+void meshNode::init()
+{
+    memset(&_stAgg, 0, sizeof(OVERALL_STATUS_AGGREGATION));
 }
 
 uint16_t meshNode::getDevAddr()
@@ -483,11 +510,9 @@ boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
     MESH_COMMAND_OVERALL_STATUS_III *statusIII = (MESH_COMMAND_OVERALL_STATUS_III*) (buf+2);
     MESH_COMMAND_OVERALL_STATUS_IV *statusIV = (MESH_COMMAND_OVERALL_STATUS_IV*) (buf+2);
 
-    DEBUG_MESH.printf("%s\n", __FUNCTION__);
-
     if(!buf)
     {
-        Serial.println("buf is null");
+        DEBUG_MESH.println("buf is null");
         return false;
     }
 
@@ -505,12 +530,6 @@ boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
         _stAgg.sequence = sequence;
     }
 
-    /*
-    DEBUG_MESH.printf("segmentMap %d\n", _stAgg.segmentMap);
-    DEBUG_MESH.printf("sequence %d\n", _stAgg.sequence);
-    DEBUG_MESH.printf("secondType %d\n", _stAgg.status.secondType);
-    DEBUG_MESH.printf("temperatur %d\n", _stAgg.status.temperature);
-    //*/
     switch(segment)
     {
         case MESH_OVERALL_STATUS_I:
@@ -548,7 +567,8 @@ boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
             _stAgg.status.timerOff = statusIV->timerOff;
             break;
     }
-    DEBUG_MESH.printf("segmentMap %d\n", _stAgg.segmentMap);
+
+    DEBUG_MESH.printf("%s, segmentMap %d\n", __FUNCTION__, _stAgg.segmentMap);
     if(_stAgg.segmentMap == 0x03)  //0x0f
     {
         memcpy(stAgg, &_stAgg, sizeof(OVERALL_STATUS_AGGREGATION));
@@ -559,7 +579,17 @@ boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
 
 }
 
+int meshNode::checkStatusUpdateSeq(uint8_t sequence)
+{
+    if(sequence == _stUpdSeq)
+    {
+        DEBUG_MESH.printf("%s, sequence %d repeated\n", __FUNCTION__, sequence);
+        return RET_ERROR;
+    }
 
+    _stUpdSeq = sequence;
+    return RET_OK;
+}
 
 
 

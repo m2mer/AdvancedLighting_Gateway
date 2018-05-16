@@ -23,7 +23,7 @@
 
 // MQTT_MAX_PACKET_SIZE : Maximum packet size
 #ifndef MQTT_MAX_PACKET_SIZE
-#define MQTT_MAX_PACKET_SIZE 128
+#define MQTT_MAX_PACKET_SIZE 256    //128, use 256 to pub large packet
 #endif
 
 // MQTT_KEEPALIVE : keepAlive interval in Seconds

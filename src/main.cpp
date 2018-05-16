@@ -10,6 +10,8 @@
 
 #include <Arduino.h>
 #include "common/common.h"
+#include "GPIO/io.h"
+#include "GPIO/interruptEvent.h"
 #include "Wifi/WifiManagement.h"
 #include "MQTT/MQTTtransport.h"
 #include "operate/deviceManipulation.h"
@@ -22,6 +24,7 @@
 #define DEFAULT_WIFI_PASSWORD "zqkl123456.."
 
 const char *mqtt_server = "www.futureSmart.top";
+//const char *mqtt_server = "192.168.1.141";
 const char *mqtt_client_name = "gateway";
 
 /* Global Variables */
@@ -67,6 +70,11 @@ void receiveMQTTmsg(char* topic, byte* payload, unsigned int length) {
 
 }
 
+void buttonIntr()
+{
+    Serial.printf("button pushed\n");
+}
+
 void setup() {
     // put your setup code here, to run once:
 
@@ -74,6 +82,8 @@ void setup() {
 
     serial_init();
     uartEp.setRxHdl(uartRxHandler);
+    intr_register(BUTTON_RESET, buttonIntr);
+
     WiFi.macAddress(mac);
     localDevice.setMAC(mac);
     localDevice.setDeviceManipulator(&deviceMp);
@@ -82,7 +92,7 @@ void setup() {
     delay(3000);
     WifiMg.setSmartCfgCb(smartConfigDone);
     WifiMg.connectWifi();
-    smartConfigDone();
+    smartConfigDone();  //for test
 
     MQTTtp.setup(mqtt_server, mqtt_client_name, receiveMQTTmsg);
 }
@@ -111,8 +121,6 @@ void loop() {
         uartEp.loop();
 
         /* send heartbeat every second */
-        localDevice.heartbeat();
-        
-        //deviceMp.testOperateMeshAgent();
+        //localDevice.heartbeat();
     }
 }
