@@ -64,12 +64,6 @@ public:
 
 protected:
     deviceManipulation *_deviceMp;
-
-private:
-    byte _mac[6];
-    String _userId;
-    String _UUID;
-    DEVICE_TYPE _type;
     char _topicRegNoti[64];
     char _topicDevOp[64];
     char _topicGetSt[64];
@@ -80,6 +74,12 @@ private:
     char _topicRegister[64];
     char _topicHeartbeat[64];
     char _topicRstFactory[64];
+    DEVICE_TYPE _type;
+    byte _mac[6];
+    
+private:
+    String _userId;
+    String _UUID;
     uint32_t _lastHeartbeat;
 
     void init();

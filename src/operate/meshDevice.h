@@ -55,13 +55,16 @@ public:
     meshNode(byte *mac, uint16_t devAddr);
     ~meshNode(){};
 
+    void setGatewayMAC(uint8_t *mac);
     uint16_t getDevAddr();
     boolean aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg);
-    void clearAggregateStatus();
+    void clearStatus();
     int checkStatusUpdateSeq(uint8_t sequence);
+    void deviceRegister();
 
 private:
     uint16_t _devAddr;
+    uint8_t _gwMAC[6];    //gateway mac
     uint32_t _lastActive;
     OVERALL_STATUS_AGGREGATION _stAgg;
     uint8_t _stUpdSeq;
@@ -84,6 +87,8 @@ public:
     int getMeshNodeDevAddr(byte *mac, uint16_t *devAddr);
     int getMeshNodeMAC(uint16_t *devAddr, byte *mac);
 
+    void deviceRegister();
+    
     /* handle mesh message */
     void receiveUARTmsg(byte *buf, int len);
 
@@ -103,8 +108,8 @@ private:
     void recvStatusUpdate(uint16_t nodeAddr, byte *buf);
     void recvOverallStatus(uint16_t nodeAddr, byte *buf);
     void recvGroupStatus(byte *buf);
-    //void recvResetFactory(uint16_t nodeAddr, byte *buf);
-    void recvPairedNotify(byte *buf);
+    void recvResetFactory(uint16_t nodeAddr, byte *buf);
+    void recvPairedNotify(uint16_t nodeAddr, byte *buf);
 
     int _atoi(char a);
     void _getMeshCommandBinary(const char *buf, byte *bin);

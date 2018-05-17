@@ -22,13 +22,11 @@ ListNode<T>* advLinkedList<T>::getNodePtr(int index)
 
 meshAgent::meshAgent()
 {
-    setDeviceType(SMART_DEVICE_TYPE_MESH_GATEWAY, SMART_SERVICE_DEFAULT);
-    //setDeviceType(SMART_DEVICE_TYPE_MESH_LIGHT, SMART_LIGHT_MODE_RGB);   
+    setDeviceType(SMART_DEVICE_TYPE_MESH_GATEWAY, SMART_SERVICE_DEFAULT); 
 }
 meshAgent::meshAgent(byte *mac):smartDevice(mac)
 {
-    setDeviceType(SMART_DEVICE_TYPE_MESH_GATEWAY, SMART_SERVICE_DEFAULT);   
-    //setDeviceType(SMART_DEVICE_TYPE_MESH_LIGHT, SMART_LIGHT_MODE_RGB);     
+    setDeviceType(SMART_DEVICE_TYPE_MESH_GATEWAY, SMART_SERVICE_DEFAULT);      
 }
 
 boolean meshAgent::isMeshNodeExist(byte *mac)
@@ -251,10 +249,10 @@ void meshAgent::receiveUARTmsg(byte *buf, int len)
         recvOverallStatus(nodeAddr, (byte*)&cmdData->cmdPara);
     else if(meshCmd == LGT_CMD_ADVLIGHT_GROUP_STATUS)
         recvGroupStatus((byte*)&cmdData->cmdPara);
-    //else if(meshCmd == LGT_CMD_ADVLIGHT_RESET_FACTORY)
-        //recvResetFactory(nodeAddr, (byte*)&cmdData->cmdPara);  
+    else if(meshCmd == LGT_CMD_ADVLIGHT_RESET_FACTORY)
+        recvResetFactory(nodeAddr, (byte*)&cmdData->cmdPara);  
     else if(meshCmd == LGT_CMD_ADVLIGHT_PAIRED_NOTIFY)
-        recvPairedNotify((byte*)&cmdData->cmdPara);      
+        recvPairedNotify(nodeAddr, (byte*)&cmdData->cmdPara);      
 }
 
 /* 
@@ -289,7 +287,7 @@ void meshAgent::recvStatusUpdate(uint16_t nodeAddr, byte *buf)
             stPkt.funcType = update->funcType;
             stPkt.status = update->funcPara;
             if(stPkt.funcType == MESH_DEVICE_FUNCTION_OFFLINE)
-                node->data.clearAggregateStatus();
+                node->data.clearStatus();
 
             if(node->data.checkStatusUpdateSeq(update->sequence) == RET_OK)
             {
@@ -322,8 +320,7 @@ void meshAgent::recvOverallStatus(uint16_t nodeAddr, byte *buf)
         DEBUG_MESH.printf("invalid devAddr\n");
         return;
     }
-    //deviceRegister();
-    //return;
+
     for(int i=0; i<cnt; i++)
     {
         ListNode<meshNode> *node = _meshNodeList.getNodePtr(i);
@@ -366,7 +363,6 @@ void meshAgent::recvGroupStatus(byte *buf)
 
     //TBD
 }
-#if 0
 
 /* 
  * handle reset_factory notify from mesh node
@@ -409,14 +405,99 @@ void meshAgent::recvResetFactory(uint16_t nodeAddr, byte *buf)
         }
     }
 }
-#endif
 
-void meshAgent::recvPairedNotify(byte *buf)
+void meshAgent::recvPairedNotify(uint16_t nodeAddr, byte *buf)
 {
+    int cnt = _meshNodeList.size();
     MESH_COMMAND_PAIRED_NOTIFY *notify = (MESH_COMMAND_PAIRED_NOTIFY*) buf;
+    meshNode *nodeP = NULL;
+    MESH_DEVICE_OVERALL_STATUS stPkt;
+    char stMsg[256] = {0};
+    int id = 0;
 
-    memcpy(_meshMAC, notify->mac, 6);
+    DEBUG_MESH.printf("%s, devAddr 0x%04x\n", __FUNCTION__, nodeAddr);
 
+    if(nodeAddr == 0)
+    {
+        DEBUG_MESH.printf("invalid devAddr\n");
+        return;
+    }
+
+    if(notify->firstType == SMART_DEVICE_TYPE_MESH_GATEWAY)
+    {
+        memcpy(_meshMAC, notify->mac, 6);
+        /* gateway register to cloud */
+        deviceRegister();
+    }
+    else
+    {
+        for(id; id<cnt; id++)
+        {
+            ListNode<meshNode> *node = _meshNodeList.getNodePtr(id);
+            if(nodeAddr == node->data.getDevAddr())
+            {
+                nodeP = &node->data;
+                break;
+            }
+        }
+        if(id >= cnt)
+        {
+            /* no mesh node found, add new node */
+            nodeP = new meshNode(nodeAddr);
+            if(!nodeP)
+            {
+                DEBUG_MESH.printf("new meshNode fail!\n");
+                return;
+            }
+            nodeP->setGatewayMAC(_mac);
+            nodeP->setDeviceType(notify->firstType, notify->secondType);  
+            this->_meshNodeList.add(*nodeP);
+        }
+
+        /* mesh node register to cloud */
+        nodeP->deviceRegister();
+    }
+
+}
+
+/* 
+ * deviceRegister
+ * register gateway to cloud, contain wifi device and mesh agent
+ * 
+ */
+void meshAgent::deviceRegister() 
+{
+    uint8 mac[6];
+    char wifi_mac[13] = {0};
+    char mesh_mac[13] = {0};
+    char bssid[32] = {0};
+    char type[9] = {0};
+    char msg[256] = {0};
+
+    /* subscribe registration_notify first */
+    _deviceMp->mqttSubscribe(_topicRegNoti);
+
+    getMacAddress(mac);
+    WiFi.BSSIDstr().toCharArray(bssid, 32, 0);
+    DEBUG_DEVICE.printf("get mac %0x%0x%0x%0x%0x%0x\n", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+    DEBUG_DEVICE.printf("get bssid %s\n", bssid);
+
+    sprintf(type, "%04x%04x", this->_type.firstType, this->_type.secondType);
+    sprintf(wifi_mac, "%0x%0x%0x%0x%0x%0x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+    sprintf(mesh_mac, "%0x%0x%0x%0x%0x%0x", _meshMAC[0],_meshMAC[1],_meshMAC[2],_meshMAC[3],_meshMAC[4],_meshMAC[5]);
+
+    strcat(msg, "{\"type\":\"");
+    strcat(msg, type);
+    strcat(msg, "\",\"vendor\":\"AISmart\",\"MAC\":\"");
+    strcat(msg, wifi_mac);
+    strcat(msg, "\",\"BSSID\":\"");
+    strcat(msg, bssid);
+    strcat(msg, "\",\"meshId\":\"");
+    strcat(msg, mesh_mac);
+    strcat(msg, "\"}");
+
+    _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_DEVICE_REGISTER), msg);
+    DEBUG_DEVICE.printf("pub device register %s\n", msg);
 }
 
 int meshAgent::_atoi(char a)
@@ -496,9 +577,15 @@ uint16_t meshNode::getDevAddr()
     return _devAddr;
 }
 
-void meshNode::clearAggregateStatus()
+void meshNode::setGatewayMAC(uint8_t *mac)
+{
+    memcpy(_gwMAC, mac, 6);
+}
+
+void meshNode::clearStatus()
 {
     memset(&this->_stAgg, 0, sizeof(OVERALL_STATUS_AGGREGATION));
+    _stUpdSeq = 0;
 }
 
 boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
@@ -518,6 +605,7 @@ boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
 
     sequence = buf[0];
     segment = buf[1];
+    DEBUG_MESH.printf("in seq %d, _seq %d, segMap 0x%0x\n", sequence,  _stAgg.sequence, _stAgg.segmentMap);
 
     if(sequence < _stAgg.sequence)  // old status, abandon
         return false;                    
@@ -525,7 +613,6 @@ boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
         return false;
     else if(sequence > _stAgg.sequence)  // new status, clear old map
     {
-        //DEBUG_MESH.printf("in seq %d, _seq %d\n", sequence,  _stAgg.sequence);
         _stAgg.segmentMap = 0;           
         _stAgg.sequence = sequence;
     }
@@ -591,6 +678,38 @@ int meshNode::checkStatusUpdateSeq(uint8_t sequence)
     return RET_OK;
 }
 
+void meshNode::deviceRegister() 
+{
+    uint8 mac[6];
+    char nd_mac[13] = {0};
+    char gw_mac[13] = {0};
+    char bssid[32] = {0};
+    char type[9] = {0};
+    char msg[256] = {0};
+
+    /* subscribe registration_notify first */
+    _deviceMp->mqttSubscribe(_topicRegNoti);
+
+    getMacAddress(mac);
+    WiFi.BSSIDstr().toCharArray(bssid, 32, 0);
+    DEBUG_DEVICE.printf("get mac %0x%0x%0x%0x%0x%0x\n", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+    DEBUG_DEVICE.printf("get bssid %s\n", bssid);
+
+    sprintf(type, "%04x%04x", this->_type.firstType, this->_type.secondType);
+    sprintf(nd_mac, "%0x%0x%0x%0x%0x%0x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+    sprintf(gw_mac, "%0x%0x%0x%0x%0x%0x", _gwMAC[0],_gwMAC[1],_gwMAC[2],_gwMAC[3],_gwMAC[4],_gwMAC[5]);
+
+    strcat(msg, "{\"type\":\"");
+    strcat(msg, type);
+    strcat(msg, "\",\"vendor\":\"AISmart\",\"MAC\":\"");
+    strcat(msg, nd_mac);
+    strcat(msg, "\",\"gatewayID\":\"");
+    strcat(msg, gw_mac);
+    strcat(msg, "\"}");
+
+    _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_DEVICE_REGISTER), msg);
+    DEBUG_DEVICE.printf("pub device register %s\n", msg);
+}
 
 
 

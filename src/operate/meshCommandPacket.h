@@ -28,8 +28,8 @@
 #define         LGT_CMD_ADVLIGHT_GROUP_UPDT         0x37
 #define         LGT_CMD_ADVLIGHT_OVERALL_STATUS     0x38
 #define         LGT_CMD_ADVLIGHT_GROUP_STATUS       0x39
-#define         LGT_CMD_ADVLIGHT_RESET_FACTORY      0x3a
-#define         LGT_CMD_ADVLIGHT_PAIRED_NOTIFY      0x3b
+#define         LGT_CMD_ADVLIGHT_PAIRED_NOTIFY      0x3a
+#define         LGT_CMD_ADVLIGHT_RESET_FACTORY      0x3b
 
 
 
@@ -115,6 +115,8 @@ typedef struct {
 }MESH_COMMAND_RESET_FACTORY;
 
 typedef struct {
+	uint8_t firstType;
+	uint8_t secondType;
 	uint8_t mac[6];
 }MESH_COMMAND_PAIRED_NOTIFY;
 

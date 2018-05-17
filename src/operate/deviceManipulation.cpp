@@ -85,11 +85,9 @@ int deviceManipulation::receiveUARTmsg(byte *buf, int length) {
         }
 
         memcpy(&_uartBuf[_uartBufOff], buf, length);
-        if(!validUartProtocol(_uartBuf, _uartBufOff+length))
-        {
-            _uartBufOff += length;
+        _uartBufOff += length;
+        if(!validUartProtocol(_uartBuf, _uartBufOff))
             return RET_ERROR;
-        }
     }
 
     protData = (UART_PROTOCOL_DATA*)&_uartBuf[UART_PROTOCOL_HEAD_LEN];
