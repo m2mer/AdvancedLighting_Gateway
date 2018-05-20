@@ -292,7 +292,7 @@ void meshAgent::recvStatusUpdate(uint16_t nodeAddr, byte *buf)
             if(node->data.checkStatusUpdateSeq(update->sequence) == RET_OK)
             {
                 /* package into mqtt message and send */
-                _packageMeshAgentMsg((char*)&stPkt, stMsg);
+                _packageMeshAgentMsg((char*)&stPkt, sizeof(MESH_DEVICE_STATUS_UPDATE), stMsg);
                 _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_STATUS_UPDATE), stMsg);
                 DEBUG_MESH.printf("send update status to cloud\n");
             }
@@ -310,6 +310,7 @@ void meshAgent::recvOverallStatus(uint16_t nodeAddr, byte *buf)
     OVERALL_STATUS_AGGREGATION stAgg;
     MESH_COMMAND_OVERALL_STATUS *status = (MESH_COMMAND_OVERALL_STATUS*) buf;
     uint16_t devAddr = nodeAddr;
+    meshNode *nodeP = NULL;
     MESH_DEVICE_OVERALL_STATUS stPkt;
     char stMsg[256] = {0};
 
@@ -336,21 +337,26 @@ void meshAgent::recvOverallStatus(uint16_t nodeAddr, byte *buf)
                 memcpy(&stPkt.status, &stAgg.status, sizeof(MESH_NODE_OVERALL_STATUS));
 
                 /* package into mqtt message and send */
-                _packageMeshAgentMsg((char*)&stPkt, stMsg);
+                _packageMeshAgentMsg((char*)&stPkt, sizeof(MESH_DEVICE_OVERALL_STATUS), stMsg);
                 _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_OVERALL_STATUS), stMsg);
                 DEBUG_MESH.printf("overall status ready, reply\n");
             }
+
             return;
         }
     }
 
     /* no mesh node found, add new node */
-    meshNode *nodeP = new meshNode(devAddr);
-    if(this->_meshNodeList.add(*nodeP))
+    nodeP = new meshNode(devAddr);
+    if(!nodeP)
     {
-        nodeP->aggregateStatus(buf, &stAgg);      
-    }
-
+        DEBUG_MESH.printf("new meshNode fail!\n");
+        return;
+    }     
+    nodeP->setGatewayMAC(_mac);
+    nodeP->setDeviceManipulator(this->_deviceMp);
+    this->_meshNodeList.add(*nodeP);
+    nodeP->aggregateStatus(buf, &stAgg);
 }
 
 /* 
@@ -396,7 +402,7 @@ void meshAgent::recvResetFactory(uint16_t nodeAddr, byte *buf)
             stPkt.sequence = notify->sequence;
 
             /* package into mqtt message and send */
-            _packageMeshAgentMsg((char*)&stPkt, stMsg);
+            _packageMeshAgentMsg((char*)&stPkt, sizeof(MESH_DEVICE_RESET_FACTORY), stMsg);
             _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_RESET_FACTORY), stMsg);
             DEBUG_MESH.printf("send reset factory notify to cloud\n");
 
@@ -427,7 +433,7 @@ void meshAgent::recvPairedNotify(uint16_t nodeAddr, byte *buf)
     {
         memcpy(_meshMAC, notify->mac, 6);
         /* gateway register to cloud */
-        deviceRegister();
+        this->deviceRegister();
     }
     else
     {
@@ -483,8 +489,8 @@ void meshAgent::deviceRegister()
     DEBUG_DEVICE.printf("get bssid %s\n", bssid);
 
     sprintf(type, "%04x%04x", this->_type.firstType, this->_type.secondType);
-    sprintf(wifi_mac, "%0x%0x%0x%0x%0x%0x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
-    sprintf(mesh_mac, "%0x%0x%0x%0x%0x%0x", _meshMAC[0],_meshMAC[1],_meshMAC[2],_meshMAC[3],_meshMAC[4],_meshMAC[5]);
+    sprintf(wifi_mac, "%02x%02x%02x%02x%02x%02x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+    sprintf(mesh_mac, "%02x%02x%02x%02x%02x%02x", _meshMAC[0],_meshMAC[1],_meshMAC[2],_meshMAC[3],_meshMAC[4],_meshMAC[5]);
 
     strcat(msg, "{\"type\":\"");
     strcat(msg, type);
@@ -528,21 +534,30 @@ void meshAgent::_getMeshCommandBinary(const char *buf, byte *bin)
 /*
  * package passthrough Mesh agent binary in json filed "mesh_agent"
 */
-void meshAgent::_packageMeshAgentMsg(char *buf, char *msg) 
+void meshAgent::_packageMeshAgentMsg(char *buf, int len, char *msg) 
 {
     byte mac[6] = {0};
     char uuid[12] = {0};
+    char buf_str[128] = {0};
+    char *ptr = buf;
 
     getMacAddress(mac);
     sprintf(uuid, "%0x%0x%0x%0x%0x%0x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+    for(int i=0; i<len; i++)
+    {
+        sprintf(&buf_str[2*i], "%02x", *(ptr++));
+    }    
 
     strcat(msg, "{\"UUID\":\"");
     strncat(msg, uuid, 12);
     strcat(msg, "\",\"attribute\":\"");
     strcat(msg, "mesh_agent");
     strcat(msg, "\",\"value\":\"");
-    strcat(msg, (const char*)buf);
+    //strcat(msg, (const char*)buf);
+    strcat(msg, (const char*)buf_str);
     strcat(msg, "\"}");
+
+    DEBUG_DEVICE.printf("gen msg: %s\n", msg);
 }
 
 
@@ -592,6 +607,7 @@ boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
 {
     uint8_t sequence = 0;
     uint8_t segment = 0;
+    MESH_COMMAND_OVERALL_STATUS *status = (MESH_COMMAND_OVERALL_STATUS*) buf;
     MESH_COMMAND_OVERALL_STATUS_I *statusI = (MESH_COMMAND_OVERALL_STATUS_I*) (buf+2);
     MESH_COMMAND_OVERALL_STATUS_II *statusII = (MESH_COMMAND_OVERALL_STATUS_II*) (buf+2);
     MESH_COMMAND_OVERALL_STATUS_III *statusIII = (MESH_COMMAND_OVERALL_STATUS_III*) (buf+2);
@@ -603,15 +619,15 @@ boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
         return false;
     }
 
-    sequence = buf[0];
-    segment = buf[1];
+    sequence = status->sequence;
+    segment = status->segment;
     DEBUG_MESH.printf("in seq %d, _seq %d, segMap 0x%0x\n", sequence,  _stAgg.sequence, _stAgg.segmentMap);
 
-    if(sequence < _stAgg.sequence)  // old status, abandon
+    if(sequence < _stAgg.sequence && sequence != 0)  // old status, abandon
         return false;                    
     else if(sequence == _stAgg.sequence && _stAgg.segmentMap == 0x03)  //repeated packet
         return false;
-    else if(sequence > _stAgg.sequence)  // new status, clear old map
+    else if(sequence > _stAgg.sequence || sequence == 0)  // new status, clear old map
     {
         _stAgg.segmentMap = 0;           
         _stAgg.sequence = sequence;
@@ -621,10 +637,18 @@ boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
     {
         case MESH_OVERALL_STATUS_I:
             _stAgg.segmentMap |= 0x01;
-            setMAC(statusI->mac);       
+            setMAC(statusI->mac); 
+            setDeviceType(statusI->firstType, statusI->secondType);      
             memcpy(_stAgg.status.mac, statusI->mac, 6);
             _stAgg.status.firstType = statusI->firstType;
             _stAgg.status.secondType = statusI->secondType;
+
+            /* a new paired node, register to cloud */
+            if(sequence == 0)
+            {
+                DEBUG_MESH.printf("new node, register to cloud\n");
+                this->deviceRegister();
+            }
             break;
         case MESH_OVERALL_STATUS_II:
             _stAgg.segmentMap |= 0x02;         
@@ -668,7 +692,7 @@ boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
 
 int meshNode::checkStatusUpdateSeq(uint8_t sequence)
 {
-    if(sequence == _stUpdSeq)
+    if(sequence == _stUpdSeq && sequence != 0)
     {
         DEBUG_MESH.printf("%s, sequence %d repeated\n", __FUNCTION__, sequence);
         return RET_ERROR;
@@ -696,14 +720,14 @@ void meshNode::deviceRegister()
     DEBUG_DEVICE.printf("get bssid %s\n", bssid);
 
     sprintf(type, "%04x%04x", this->_type.firstType, this->_type.secondType);
-    sprintf(nd_mac, "%0x%0x%0x%0x%0x%0x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
-    sprintf(gw_mac, "%0x%0x%0x%0x%0x%0x", _gwMAC[0],_gwMAC[1],_gwMAC[2],_gwMAC[3],_gwMAC[4],_gwMAC[5]);
+    sprintf(nd_mac, "%02x%02x%02x%02x%02x%02x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+    sprintf(gw_mac, "%02x%02x%02x%02x%02x%02x", _gwMAC[0],_gwMAC[1],_gwMAC[2],_gwMAC[3],_gwMAC[4],_gwMAC[5]);
 
     strcat(msg, "{\"type\":\"");
     strcat(msg, type);
     strcat(msg, "\",\"vendor\":\"AISmart\",\"MAC\":\"");
     strcat(msg, nd_mac);
-    strcat(msg, "\",\"gatewayID\":\"");
+    strcat(msg, "\",\"gatewayId\":\"");
     strcat(msg, gw_mac);
     strcat(msg, "\"}");
 

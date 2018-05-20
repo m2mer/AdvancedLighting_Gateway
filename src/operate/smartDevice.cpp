@@ -131,7 +131,7 @@ void smartDevice::heartbeat()
     _lastHeartbeat = now;
 
     getMacAddress(mac);
-    sprintf(msg, "{\"MAC\":\"");
+    sprintf(msg, "{\"UUID\":\"");
     sprintf(mac_str, "%0x%0x%0x%0x%0x%0x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
     strcat(msg, mac_str);
     strcat(msg, "\"}");
@@ -157,7 +157,7 @@ void smartDevice::deviceRegister()
     DEBUG_DEVICE.printf("get bssid %s\n", bssid);
 
     sprintf(type, "%04x%04x", this->_type.firstType, this->_type.secondType);
-    sprintf(mac_str, "%0x%0x%0x%0x%0x%0x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+    sprintf(mac_str, "%02x%02x%02x%02x%02x%02x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
 
     strcat(msg, "{\"type\":\"");
     strcat(msg, type);

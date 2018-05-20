@@ -113,7 +113,7 @@ private:
 
     int _atoi(char a);
     void _getMeshCommandBinary(const char *buf, byte *bin);
-    void _packageMeshAgentMsg(char *buf, char *msg);
+    void _packageMeshAgentMsg(char *buf, int len, char *msg);
 
 };
 
