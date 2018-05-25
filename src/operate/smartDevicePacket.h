@@ -62,6 +62,12 @@ typedef union {
     uint16_t timerOff;
 }DEVICE_FUNCTION_PARA;
 
+typedef enum
+{
+	DEVICE_RESET_SOFTWARE_DELETED = 0,
+	DEVICE_RESET_HARDWARE_RESET = 1,
+}DEVICE_RESET_FLAG;
+
 typedef struct {
 	uint8_t mac[6];
 	uint8_t firstType;
@@ -137,11 +143,6 @@ typedef struct {
 	MESH_NODE_OVERALL_STATUS status;
 }MESH_DEVICE_OVERALL_STATUS;
 
-typedef struct {
-	uint8_t command;
-	uint8_t sequence;
-	uint8_t mac[6];
-}MESH_DEVICE_RESET_FACTORY;
 
 
 #endif /* smartDevicePacket_H */ 

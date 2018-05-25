@@ -31,16 +31,19 @@ void smartDevice::init()
     memset(_topicDevOp, 0, 64);
     memset(_topicGetSt, 0, 64);
     memset(_topicGetGrpSt, 0, 64);
+    memset(_topicAppNoti, 0, 64);
+    memset(_topicDeviceDel, 0, 64);        
     memset(_topicStUpd, 0, 64);
     memset(_topicOvaSt, 0, 64);
     memset(_topicGrpSt, 0, 64); 
-    memset(_topicHeartbeat, 0, 64);
+    memset(_topicStateNoti, 0, 64);
     memset(_topicRegister, 0, 64);     
 
     memcpy(_topicRegister, "device/device_register", 64);
     memcpy(_topicRegNoti, "device/registration_notify", 64);
 
-    _lastHeartbeat = 0;              
+    _lastHeartbeat = 0;     
+    _hbIntvlMs = 1000;    //300*1000, 5min         
 }
 
 void smartDevice::setDeviceManipulator(deviceManipulation *deviceMp)
@@ -80,13 +83,14 @@ void smartDevice::setMQTTDynTopic()
     memcpy(_topicDevOp, "device/device_operate", 64);
     memcpy(_topicGetSt, "device/get_status", 64);
     memcpy(_topicGetGrpSt, "device/get_group_status", 64); 
+    memcpy(_topicAppNoti, "device/app_notify", 64);
+    memcpy(_topicDeviceDel, "device/device_delete", 64); 
 
     /* pub topics */
     memcpy(_topicStUpd, "device/status_update", 64);
     memcpy(_topicOvaSt, "device/status_reply", 64);           
     memcpy(_topicGrpSt, "device/status_group", 64);
-    memcpy(_topicHeartbeat, "device/heartbeat", 64);
-    memcpy(_topicRstFactory, "device/reset_factory", 64);          
+    memcpy(_topicStateNoti, "device/state_notify", 64);          
 }
 
 char* smartDevice::getMQTTtopic(DEVICE_MQTT_TOPIC topic)
@@ -101,18 +105,18 @@ char* smartDevice::getMQTTtopic(DEVICE_MQTT_TOPIC topic)
             return _topicGetSt;
         case SUB_TOPIC_GET_GROUP_STATUS:
             return _topicGetGrpSt;
-        case PUB_TOPIC_STATUS_UPDATE:
-            return _topicStUpd;      
+        case SUB_TOPIC_APP_NOTIFY:
+            return _topicAppNoti;
+        case SUB_TOPIC_DEVICE_DELETE:
+            return _topicDeviceDel;      
         case PUB_TOPIC_OVERALL_STATUS:
             return _topicOvaSt;
         case PUB_TOPIC_GROUP_STATUS:
             return _topicGrpSt;
         case PUB_TOPIC_DEVICE_REGISTER:
             return _topicRegister;
-        case PUB_TOPIC_DEVICE_HEARBEAT:
-            return _topicHeartbeat;
-        case PUB_TOPIC_RESET_FACTORY:
-            return _topicRstFactory;
+        case PUB_TOPIC_STATE_NOTIFY:
+            return _topicStateNoti;
     }
 }
 
@@ -125,7 +129,7 @@ void smartDevice::heartbeat()
     char mac_str[12] = {0};
     char msg[256] = {0};
     uint32_t now = millis();
-    if((now - _lastHeartbeat) < 1000)
+    if((now - _lastHeartbeat) < _hbIntvlMs)
         return;
     
     _lastHeartbeat = now;
@@ -134,10 +138,10 @@ void smartDevice::heartbeat()
     sprintf(msg, "{\"UUID\":\"");
     sprintf(mac_str, "%0x%0x%0x%0x%0x%0x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
     strcat(msg, mac_str);
-    strcat(msg, "\"}");
+    strcat(msg, "\",\"attribute\":\"heartbeat\"}");
 
     DEBUG_DEVICE.printf("\nbegin to pub %s\n", msg);
-    _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_DEVICE_HEARBEAT), msg);
+    _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_STATE_NOTIFY), msg);
 }
 
 void smartDevice::deviceRegister() 
@@ -150,6 +154,7 @@ void smartDevice::deviceRegister()
 
     /* subscribe registration_notify first */
     _deviceMp->mqttSubscribe(_topicRegNoti);
+    _deviceMp->mqttClient->loop();
 
     getMacAddress(mac);
     WiFi.BSSIDstr().toCharArray(bssid, 32, 0);
@@ -179,6 +184,8 @@ void smartDevice::receiveMQTTmsg(char* topic, byte* payload, unsigned int length
 
     if(strcmp(topic, getMQTTtopic(SUB_TOPIC_REGISTER_NOTIFY)) == 0)
         registrationNotify(valid, length);
+    else if(strcmp(topic, getMQTTtopic(SUB_TOPIC_APP_NOTIFY)) == 0)
+        appNotify(valid, length);    
     else if(strcmp(topic, getMQTTtopic(SUB_TOPIC_DEVICE_OPERATE)) == 0)
         operateDevice(valid, length);
     else if(strcmp(topic, getMQTTtopic(SUB_TOPIC_GET_STATUS)) == 0)
@@ -206,5 +213,21 @@ int smartDevice::registrationNotify(byte* payload, unsigned int length)
     _deviceMp->mqttSubscribe(_topicGetSt);
     _deviceMp->mqttSubscribe(_topicDevOp);
     _deviceMp->mqttSubscribe(_topicGetGrpSt);
+
+}
+
+int smartDevice::appNotify(byte* payload, unsigned int length)
+{
+    StaticJsonBuffer<200> jsonBuffer;
+    JsonObject& data = jsonBuffer.parse(payload);
+    if(!data.success()){
+        return RET_ERROR;
+    }
+
+    const char* userId = data["userId"];
+    const char* hbIntvl = data["hbIntvl"];
+    DEBUG_DEVICE.printf("%s, userId %s, hbIntvl %s\n", __FUNCTION__, userId, hbIntvl);
+
+    _hbIntvlMs = atoi(hbIntvl);
 
 }

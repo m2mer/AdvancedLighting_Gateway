@@ -22,16 +22,19 @@
 
 
 typedef enum {
+    /* down direction */
     SUB_TOPIC_REGISTER_NOTIFY = 1,
     SUB_TOPIC_DEVICE_OPERATE = 2,
     SUB_TOPIC_GET_STATUS = 3,
     SUB_TOPIC_GET_GROUP_STATUS = 4,
-    PUB_TOPIC_STATUS_UPDATE = 5,
-    PUB_TOPIC_OVERALL_STATUS = 6,
-    PUB_TOPIC_GROUP_STATUS = 7,
-    PUB_TOPIC_DEVICE_REGISTER = 8,
-    PUB_TOPIC_DEVICE_HEARBEAT = 9,
-    PUB_TOPIC_RESET_FACTORY = 10,
+    SUB_TOPIC_APP_NOTIFY = 5,
+    SUB_TOPIC_DEVICE_DELETE = 6,  
+    /* up direction */  
+    PUB_TOPIC_STATUS_UPDATE = 7,
+    PUB_TOPIC_OVERALL_STATUS = 8,
+    PUB_TOPIC_GROUP_STATUS = 9,
+    PUB_TOPIC_DEVICE_REGISTER = 10,
+    PUB_TOPIC_STATE_NOTIFY = 11,
 }DEVICE_MQTT_TOPIC;
 
 
@@ -53,6 +56,7 @@ public:
 
     void heartbeat();
     void deviceRegister();
+    virtual int hardwareReset(){};
     char* getMQTTtopic(DEVICE_MQTT_TOPIC topic);
     void setMQTTDynTopic();
 
@@ -68,12 +72,13 @@ protected:
     char _topicDevOp[64];
     char _topicGetSt[64];
     char _topicGetGrpSt[64];
+    char _topicAppNoti[64];
+    char _topicDeviceDel[64];
     char _topicStUpd[64];
     char _topicOvaSt[64];
     char _topicGrpSt[64];
     char _topicRegister[64];
-    char _topicHeartbeat[64];
-    char _topicRstFactory[64];
+    char _topicStateNoti[64];
     DEVICE_TYPE _type;
     byte _mac[6];
     
@@ -81,13 +86,16 @@ private:
     String _userId;
     String _UUID;
     uint32_t _lastHeartbeat;
+    uint32_t _hbIntvlMs;
 
     void init();
     int registrationNotify(byte* payload, unsigned int length);
+    int appNotify(byte* payload, unsigned int length);
 
     virtual int operateDevice(byte* payload, unsigned int length){};
     virtual int getOverallStatus(byte* payload, unsigned int length){};
     virtual int getGroupStatus(byte* payload, unsigned int length){};
+    virtual int deviceDelete(byte* payload, unsigned int length){};
 };
 
 

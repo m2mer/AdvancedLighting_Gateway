@@ -1,5 +1,5 @@
 /*
- Description: mesh device
+ Description: mesh Agent
  
  Author: Xuesong
  
@@ -9,18 +9,16 @@
 
 
 
-#ifndef meshDevice_H
-#define meshDevice_H
+#ifndef meshAgent_H
+#define meshAgent_H
 
 
 #include <Arduino.h>
 #include <LinkedList.h>
 
-#include "smartDevice.h"
-#include "smartDevicePacket.h"
+#include "meshNode.h"
 
 
-#define DEBUG_MESH Serial1
 
 
 
@@ -33,44 +31,7 @@ public:
 };
 
 
-/*
- * this is to aggregate segments of overall_status message from mesh node 
-*/
 
-typedef struct {
-	uint8_t sequence;	
-    uint8_t segmentMap;
-    MESH_NODE_OVERALL_STATUS status;
-}OVERALL_STATUS_AGGREGATION;
-
-
-
-
-class meshNode:public smartDevice
-{
-
-public:
-    meshNode();      //for LinkedList.get() bug
-    meshNode(uint16_t devAddr);
-    meshNode(byte *mac, uint16_t devAddr);
-    ~meshNode(){};
-
-    void setGatewayMAC(uint8_t *mac);
-    uint16_t getDevAddr();
-    boolean aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg);
-    void clearStatus();
-    int checkStatusUpdateSeq(uint8_t sequence);
-    void deviceRegister();
-
-private:
-    uint16_t _devAddr;
-    uint8_t _gwMAC[6];    //gateway mac
-    uint32_t _lastActive;
-    OVERALL_STATUS_AGGREGATION _stAgg;
-    uint8_t _stUpdSeq;
-
-    void init();
-};
 
 
 class meshAgent:public smartDevice
@@ -88,6 +49,7 @@ public:
     int getMeshNodeMAC(uint16_t *devAddr, byte *mac);
 
     void deviceRegister();
+    int hardwareReset();
     
     /* handle mesh message */
     void receiveUARTmsg(byte *buf, int len);
@@ -103,6 +65,7 @@ private:
     int operateDevice(byte* payload, unsigned int length);
     int getOverallStatus(byte* payload, unsigned int length);
     int getGroupStatus(byte* payload, unsigned int length);
+    int deviceDelete(byte* payload, unsigned int length);
 
     /* handle message from peer uart */    
     void recvStatusUpdate(uint16_t nodeAddr, byte *buf);

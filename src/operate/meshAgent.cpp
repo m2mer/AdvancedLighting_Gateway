@@ -1,5 +1,5 @@
 /*
- Description: mesh device
+ Description: mesh agent
  
  Author: Xuesong
  
@@ -9,7 +9,7 @@
 
 #include <ArduinoJson.h>
 
-#include "meshDevice.h"
+#include "meshAgent.h"
 #include "meshCommandPacket.h"
 #include "uartProtocolPacket.h"
 
@@ -161,6 +161,24 @@ int meshAgent::getOverallStatus(byte* payload, unsigned int length)
 int meshAgent::getGroupStatus(byte* payload, unsigned int length)
 {
     //TBD    
+}
+
+int meshAgent::deviceDelete(byte* payload, unsigned int length)
+{
+    char msg[256] = {0};
+    char uuid[12] = {0};
+
+    //TBD 
+
+    /* package into mqtt message and send */
+    sprintf(uuid, "%0x%0x%0x%0x%0x%0x", _mac[0],_mac[1],_mac[2],_mac[3],_mac[4],_mac[5]);
+    strcat(msg, "{\"UUID\":\"");
+    strncat(msg, uuid, 12);
+    strcat(msg, "\",\"attribute\":\"");
+    strcat(msg, "\"device_deleted\"}");
+
+    _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_STATE_NOTIFY), msg);
+    DEBUG_MESH.printf("send state notify to cloud\n");    
 }
 
 /* 
@@ -379,8 +397,8 @@ void meshAgent::recvResetFactory(uint16_t nodeAddr, byte *buf)
     int cnt = _meshNodeList.size();
     MESH_COMMAND_RESET_FACTORY *notify = (MESH_COMMAND_RESET_FACTORY*) buf;
     uint16_t devAddr = nodeAddr;
-    MESH_DEVICE_RESET_FACTORY stPkt;
-    char stMsg[256] = {0};
+    char msg[256] = {0};
+    char uuid[12] = {0};
 
     DEBUG_MESH.printf("%s, devAddr 0x%04x\n", __FUNCTION__, devAddr);
 
@@ -397,14 +415,18 @@ void meshAgent::recvResetFactory(uint16_t nodeAddr, byte *buf)
         {
             DEBUG_MESH.printf("found node\n");
 
-            stPkt.command = LGT_CMD_ADVLIGHT_RESET_FACTORY;
-            node->data.getMacAddress(stPkt.mac);
-            stPkt.sequence = notify->sequence;
-
             /* package into mqtt message and send */
-            _packageMeshAgentMsg((char*)&stPkt, sizeof(MESH_DEVICE_RESET_FACTORY), stMsg);
-            _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_RESET_FACTORY), stMsg);
-            DEBUG_MESH.printf("send reset factory notify to cloud\n");
+            sprintf(uuid, "%0x%0x%0x%0x%0x%0x", _mac[0],_mac[1],_mac[2],_mac[3],_mac[4],_mac[5]);
+            strcat(msg, "{\"UUID\":\"");
+            strncat(msg, uuid, 12);
+            strcat(msg, "\",\"attribute\":\"");
+            if(notify->flag == DEVICE_RESET_SOFTWARE_DELETED)
+                strcat(msg, "\"device_deleted\"}");
+            else
+                strcat(msg, "\"hardware_reset\"}");
+
+            _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_STATE_NOTIFY), msg);
+            DEBUG_MESH.printf("send state notify to cloud\n");
 
             //TBD, delete node?
             _meshNodeList.remove(i);
@@ -536,13 +558,11 @@ void meshAgent::_getMeshCommandBinary(const char *buf, byte *bin)
 */
 void meshAgent::_packageMeshAgentMsg(char *buf, int len, char *msg) 
 {
-    byte mac[6] = {0};
     char uuid[12] = {0};
     char buf_str[128] = {0};
     char *ptr = buf;
 
-    getMacAddress(mac);
-    sprintf(uuid, "%0x%0x%0x%0x%0x%0x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+    sprintf(uuid, "%0x%0x%0x%0x%0x%0x", _mac[0],_mac[1],_mac[2],_mac[3],_mac[4],_mac[5]);
     for(int i=0; i<len; i++)
     {
         sprintf(&buf_str[2*i], "%02x", *(ptr++));
@@ -560,180 +580,23 @@ void meshAgent::_packageMeshAgentMsg(char *buf, int len, char *msg)
     DEBUG_DEVICE.printf("gen msg: %s\n", msg);
 }
 
-
-/*
- * meshNode functions
- *
-*/
-meshNode::meshNode()
+int meshAgent::hardwareReset()
 {
-    init();
-}
-
-meshNode::meshNode(uint16_t devAddr)
-{
-    _devAddr = devAddr;
-    init();
-}
-
-meshNode::meshNode(byte *mac, uint16_t devAddr):smartDevice(mac)
-{
-    _devAddr = devAddr;
-    init();
-}
-
-void meshNode::init()
-{
-    memset(&_stAgg, 0, sizeof(OVERALL_STATUS_AGGREGATION));
-}
-
-uint16_t meshNode::getDevAddr()
-{
-    return _devAddr;
-}
-
-void meshNode::setGatewayMAC(uint8_t *mac)
-{
-    memcpy(_gwMAC, mac, 6);
-}
-
-void meshNode::clearStatus()
-{
-    memset(&this->_stAgg, 0, sizeof(OVERALL_STATUS_AGGREGATION));
-    _stUpdSeq = 0;
-}
-
-boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
-{
-    uint8_t sequence = 0;
-    uint8_t segment = 0;
-    MESH_COMMAND_OVERALL_STATUS *status = (MESH_COMMAND_OVERALL_STATUS*) buf;
-    MESH_COMMAND_OVERALL_STATUS_I *statusI = (MESH_COMMAND_OVERALL_STATUS_I*) (buf+2);
-    MESH_COMMAND_OVERALL_STATUS_II *statusII = (MESH_COMMAND_OVERALL_STATUS_II*) (buf+2);
-    MESH_COMMAND_OVERALL_STATUS_III *statusIII = (MESH_COMMAND_OVERALL_STATUS_III*) (buf+2);
-    MESH_COMMAND_OVERALL_STATUS_IV *statusIV = (MESH_COMMAND_OVERALL_STATUS_IV*) (buf+2);
-
-    if(!buf)
-    {
-        DEBUG_MESH.println("buf is null");
-        return false;
-    }
-
-    sequence = status->sequence;
-    segment = status->segment;
-    DEBUG_MESH.printf("in seq %d, _seq %d, segMap 0x%0x\n", sequence,  _stAgg.sequence, _stAgg.segmentMap);
-
-    if(sequence < _stAgg.sequence && sequence != 0)  // old status, abandon
-        return false;                    
-    else if(sequence == _stAgg.sequence && _stAgg.segmentMap == 0x03)  //repeated packet
-        return false;
-    else if(sequence > _stAgg.sequence || sequence == 0)  // new status, clear old map
-    {
-        _stAgg.segmentMap = 0;           
-        _stAgg.sequence = sequence;
-    }
-
-    switch(segment)
-    {
-        case MESH_OVERALL_STATUS_I:
-            _stAgg.segmentMap |= 0x01;
-            setMAC(statusI->mac); 
-            setDeviceType(statusI->firstType, statusI->secondType);      
-            memcpy(_stAgg.status.mac, statusI->mac, 6);
-            _stAgg.status.firstType = statusI->firstType;
-            _stAgg.status.secondType = statusI->secondType;
-
-            /* a new paired node, register to cloud */
-            if(sequence == 0)
-            {
-                DEBUG_MESH.printf("new node, register to cloud\n");
-                this->deviceRegister();
-            }
-            break;
-        case MESH_OVERALL_STATUS_II:
-            _stAgg.segmentMap |= 0x02;         
-            _stAgg.status.group = statusII->group;
-            _stAgg.status.onoff = statusII->onoff;
-            _stAgg.status.lightness = statusII->lightness;
-            _stAgg.status.mode = statusII->mode;
-            if(_stAgg.status.mode == SMART_LIGHT_TYPE_WC)
-                _stAgg.status.temperature = statusII->rgbcw.temperature;
-            else if(_stAgg.status.mode == SMART_LIGHT_TYPE_RGB)
-            {
-                _stAgg.status.color.h = statusII->rgbcw.color.h;
-                _stAgg.status.color.s = statusII->rgbcw.color.s;
-                _stAgg.status.color.v = statusII->rgbcw.color.v; 
-            }                                                                  
-            break;
-        case MESH_OVERALL_STATUS_III:
-            _stAgg.segmentMap |= 0x04; 
-            _stAgg.status.temperature = statusIII->temperature;
-            _stAgg.status.color.h = statusIII->color.h;
-            _stAgg.status.color.s = statusIII->color.s;
-            _stAgg.status.color.v = statusIII->color.v;
-            break;
-        case MESH_OVERALL_STATUS_IV:
-            _stAgg.segmentMap |= 0x08;
-            _stAgg.status.timerOn = statusIV->timerOn;
-            _stAgg.status.timerOff = statusIV->timerOff;
-            break;
-    }
-
-    DEBUG_MESH.printf("%s, segmentMap %d\n", __FUNCTION__, _stAgg.segmentMap);
-    if(_stAgg.segmentMap == 0x03)  //0x0f
-    {
-        memcpy(stAgg, &_stAgg, sizeof(OVERALL_STATUS_AGGREGATION));
-        return true;
-    }
-    else
-        return false;
-
-}
-
-int meshNode::checkStatusUpdateSeq(uint8_t sequence)
-{
-    if(sequence == _stUpdSeq && sequence != 0)
-    {
-        DEBUG_MESH.printf("%s, sequence %d repeated\n", __FUNCTION__, sequence);
-        return RET_ERROR;
-    }
-
-    _stUpdSeq = sequence;
-    return RET_OK;
-}
-
-void meshNode::deviceRegister() 
-{
-    uint8 mac[6];
-    char nd_mac[13] = {0};
-    char gw_mac[13] = {0};
-    char bssid[32] = {0};
-    char type[9] = {0};
     char msg[256] = {0};
+    char uuid[12] = {0};
 
-    /* subscribe registration_notify first */
-    _deviceMp->mqttSubscribe(_topicRegNoti);
+    //TBD 
 
-    getMacAddress(mac);
-    WiFi.BSSIDstr().toCharArray(bssid, 32, 0);
-    DEBUG_DEVICE.printf("get mac %0x%0x%0x%0x%0x%0x\n", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
-    DEBUG_DEVICE.printf("get bssid %s\n", bssid);
+    /* package into mqtt message and send */
+    sprintf(uuid, "%0x%0x%0x%0x%0x%0x", _mac[0],_mac[1],_mac[2],_mac[3],_mac[4],_mac[5]);
+    strcat(msg, "{\"UUID\":\"");
+    strncat(msg, uuid, 12);
+    strcat(msg, "\",\"attribute\":\"");
+    strcat(msg, "\"hardware_reset\"}");
 
-    sprintf(type, "%04x%04x", this->_type.firstType, this->_type.secondType);
-    sprintf(nd_mac, "%02x%02x%02x%02x%02x%02x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
-    sprintf(gw_mac, "%02x%02x%02x%02x%02x%02x", _gwMAC[0],_gwMAC[1],_gwMAC[2],_gwMAC[3],_gwMAC[4],_gwMAC[5]);
+    _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_STATE_NOTIFY), msg);
+    DEBUG_MESH.printf("send state notify to cloud\n");   
 
-    strcat(msg, "{\"type\":\"");
-    strcat(msg, type);
-    strcat(msg, "\",\"vendor\":\"AISmart\",\"MAC\":\"");
-    strcat(msg, nd_mac);
-    strcat(msg, "\",\"gatewayId\":\"");
-    strcat(msg, gw_mac);
-    strcat(msg, "\"}");
-
-    _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_DEVICE_REGISTER), msg);
-    DEBUG_DEVICE.printf("pub device register %s\n", msg);
 }
-
 
 

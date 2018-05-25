@@ -41,9 +41,10 @@ public:
     void sendUartProtocolData(byte *protData);
     boolean validUartProtocol(byte *data, int length);
     void testOperateMeshAgent();
-
-private:
     PubSubClient* mqttClient;
+    
+private:
+//    PubSubClient* mqttClient;
     HardwareSerial* _Serial;
     smartDevice *_device;
     byte _uartBuf[128] = {0};

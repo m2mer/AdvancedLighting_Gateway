@@ -110,7 +110,7 @@ typedef struct {
 
 
 typedef struct {
-	uint8_t sequence;
+	uint8_t flag;
 	uint8_t reserved;	//padding
 }MESH_COMMAND_RESET_FACTORY;
 
@@ -119,5 +119,7 @@ typedef struct {
 	uint8_t secondType;
 	uint8_t mac[6];
 }MESH_COMMAND_PAIRED_NOTIFY;
+
+
 
 #endif
