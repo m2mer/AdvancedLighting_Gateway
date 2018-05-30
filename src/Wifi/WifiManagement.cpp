@@ -27,7 +27,7 @@ void WifiManagement::setSmartCfgCb(smartConfigCb cb) {
     _cb = cb;
 }
 
-void WifiManagement::connectWifi() {
+void WifiManagement::connectWifi(int needConfig) {
     char* ssid = NULL;
     char* password = NULL;
     unsigned int timeOut = 20;
@@ -61,7 +61,10 @@ void WifiManagement::connectWifi() {
 
         while(timeOut --){
             if(WiFi.status() != WL_CONNECTED){
-                Serial.print(".");
+                #ifdef DEBUG_WiFi
+                DEBUG_WiFi.print(".");
+                #endif 
+
                 ledOn = !ledOn;
                 if(ledOn)
                     digitalWrite(LED_WIFI, HIGH);
@@ -69,7 +72,10 @@ void WifiManagement::connectWifi() {
                     digitalWrite(LED_WIFI, LOW);
             }
             if(WiFi.status() == WL_CONNECTED){
-                Serial.println("wifi connected...");
+                #ifdef DEBUG_WiFi
+                DEBUG_WiFi.println("wifi connected...");
+                #endif
+
                 digitalWrite(LED_WIFI, HIGH);
                 break;
             }
@@ -78,13 +84,18 @@ void WifiManagement::connectWifi() {
     }
 
     if(WiFi.status() == WL_CONNECTED) {
-        Serial.println("Wifi already connected...");
-        Serial.print("ip: ");
-        Serial.println(WiFi.localIP());
+        #ifdef DEBUG_WiFi        
+        DEBUG_WiFi.println("Wifi already connected...");
+        DEBUG_WiFi.print("ip: ");
+        DEBUG_WiFi.println(WiFi.localIP());
+        #endif        
     }
     else {
-        digitalWrite(LED_WIFI, LOW);
-        smartConfig();
+        if(needConfig)
+        {
+            digitalWrite(LED_WIFI, LOW);
+            smartConfig();
+        }
     }
 }
 
@@ -93,10 +104,15 @@ void WifiManagement::smartConfig(){
 
     WiFi.mode(WIFI_STA);
     WiFi.beginSmartConfig();
-    Serial.println("start SmartConfig...");
-  
+    #ifdef DEBUG_WiFi
+    DEBUG_WiFi.println("start SmartConfig...");
+    #endif
+
     while(1){
-        Serial.print(".");
+        #ifdef DEBUG_WiFi        
+        DEBUG_WiFi.print(".");
+        #endif
+
         ledOn = !ledOn;
         if(ledOn)
             digitalWrite(LED_WIFI, HIGH);
@@ -155,13 +171,13 @@ void WifiManagement::getWifiFromEEPROM(WiFi_Obj_t *wifi_obj) {
     wifi_obj->wifi_ssid = ssid;
     wifi_obj->wifi_psw = psw;
 
-#ifdef DEBUG_WiFi
+    #ifdef DEBUG_WiFi
     DEBUG_WiFi.println("get wifi from eeprom...");
     DEBUG_WiFi.printf("ssid len: %d\n", ssid_len);
     DEBUG_WiFi.printf("psw len: %d\n", psw_len);
     DEBUG_WiFi.printf("ssid: %s\n", ssid.c_str());
     DEBUG_WiFi.printf("psw: %s\n", psw.c_str());
-#endif
+    #endif
 
 }
 

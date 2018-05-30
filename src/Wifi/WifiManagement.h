@@ -38,8 +38,8 @@ class WifiManagement {
     WifiManagement();
     WifiManagement(const char* ssid, const char* password);
     ~WifiManagement();
-    
-    void connectWifi();
+
+    void connectWifi(int needConfig);
     void smartConfig();
     void setSmartCfgCb(smartConfigCb cb);
     void clearEEPROM();

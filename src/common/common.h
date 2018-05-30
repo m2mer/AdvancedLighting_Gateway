@@ -25,6 +25,22 @@
 #define DEBUG_BAUD_RATE   115200
 #endif
 
+
+typedef struct
+{
+    uint8_t networkConfiged;
+    uint8_t registered;
+}LOCAL_METADATA;
+
+typedef struct
+{
+    uint8_t mac[6];
+    uint8_t registered;
+    uint8_t reserved;
+}MESH_NODE_METADATA;
+
+
+
 void serial_init();
 
 #endif

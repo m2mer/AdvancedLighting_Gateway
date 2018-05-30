@@ -56,27 +56,31 @@ typedef struct {
     WIFI_DEVICE_FUNCTION_PARA funcPara;
 }WIFI_DEVICE_FUNCTION_DATA;
 
+
+typedef struct {
+    uint8_t networkConfiged;
+    uint8_t reserved;
+}MESH_AGENT_NOTIFY_DATA;
+
 /*
  * communicate device function data through uart
 */
 typedef enum {
     //down direction
     PROTOCOL_TYPE_OPERATE_MESH_AGENT = 0,   //ble mesh agent
-    PROTOCOL_TYPE_OPERATE_WIFI_DEVICE = 1,  //mainly wifi device
-    PROTOCOL_TYPE_GET_MESH_AGENT = 2,
+    PROTOCOL_TYPE_NOTIFY_MESH_AGENT = 1,
+    PROTOCOL_TYPE_OPERATE_WIFI_DEVICE = 2,  //mainly wifi device
     PROTOCOL_TYPE_GET_WIFI_DEVICE = 3,
+
     //up direction
     PROTOCOL_TYPE_MESH_AGENT_STATUS = 4,    //status after operation
     PROTOCOL_TYPE_WIFI_DEVICE_STATUS = 5,
-    PROTOCOL_TYPE_MESH_AGENT_OVERALL = 6,   //overall status after get_status
-    PROTOCOL_TYPE_WIFI_DEVICE_OVERALL = 7,
-    PROTOCOL_TYPE_MESH_AGENT_BRIEF = 8,   //brief status notify timely
-    PROTOCOL_TYPE_WIFI_DEVICE_BRIEF = 9,
 }UART_PROTOCOL_TYPE;
 
 typedef union {
     MESH_DEVICE_COMMAND_DATA meshData;
     WIFI_DEVICE_FUNCTION_DATA wifiData;
+    MESH_AGENT_NOTIFY_DATA meshAGdata;
 }UART_PROTOCOL_PAYLOAD;
 
 typedef struct {

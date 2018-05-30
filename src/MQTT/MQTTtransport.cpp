@@ -1,18 +1,21 @@
 /*
  Description:  Build MQTT transport layer
-
+ 
  Author: Xuesong
-
+ 
  Date: 2018-03-30
-
+ 
  */
-
-#include <ESP8266WiFi.h>
 
 #include "MQTTtransport.h"
 #include "common/common.h"
 
-const char *pubTopic = "esp8266.hello_word";
+#ifdef DEBUG_MQTT
+#include <ESP8266WiFi.h>
+#endif
+
+
+const char *pubTopic = "hello_word";
 
 
 MQTTtransport::MQTTtransport(Client& client):PubSubClient(client) {
@@ -25,14 +28,8 @@ void MQTTtransport::setup(const char *server, const char *client, receiveMsgCb c
     #ifdef DEBUG_MQTT
     DEBUG_MQTT.println(TimeStamp + "start MQTTSetup...");
     #endif
-    byte mac[6];
-    memset(mac, 0, 6);
-    WiFi.macAddress(mac);
-    this->_clientId += String(client);
-    for(unsigned char i=0; i<6; i++){
-      this->_clientId += String(mac[i], HEX);
-    }
-
+    this->_clientId = String(client);
+    
     this->setServer(server, SSDP_PORT);
     this->setCallback(cb);
 }
@@ -52,12 +49,12 @@ void MQTTtransport::reconnect() {
     // Attempt to connect
     if (this->connect(this->_clientId.c_str())) {
     #ifdef DEBUG_MQTT
-      DEBUG_MQTT.println(TimeStamp + "mqtt broker connected");
+      DEBUG_MQTT.println(TimeStamp + "mqtt broker connected");    
     #endif
       // Once connected, publish an announcement...
       //this->publish(pubTopic, "hello world");
-    }
-    else
+    } 
+    else 
     {
 
     #ifdef DEBUG_MQTT

@@ -21,6 +21,12 @@
 
 #define DEBUG_MESH Serial1
 
+typedef struct {
+    uint8_t mac[6];
+    uint8_t registered;
+    uint8_t reserved;
+}MESH_NODE_META_INFO;
+
 /*
  * this is to aggregate segments of overall_status message from mesh node 
 */

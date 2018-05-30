@@ -48,6 +48,7 @@ public:
     int getMeshNodeDevAddr(byte *mac, uint16_t *devAddr);
     int getMeshNodeMAC(uint16_t *devAddr, byte *mac);
 
+    void notifyMeshAgent(int networkConfiged);
     void deviceRegister();
     int hardwareReset();
     

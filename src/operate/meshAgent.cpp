@@ -130,7 +130,7 @@ int meshAgent::getOverallStatus(byte* payload, unsigned int length)
     packet = (MESH_DEVICE_GET_STATUS*)meshCmd;
 
     memset(&protData, 0, sizeof(UART_PROTOCOL_DATA));
-    protData.protType = PROTOCOL_TYPE_GET_MESH_AGENT;
+    protData.protType = PROTOCOL_TYPE_OPERATE_MESH_AGENT;
     cmd = (MESH_DEVICE_COMMAND_DATA*) &protData.protPayload.meshData; 
     cmd->meshCmd = packet->command;
     memcpy(cmd->cmdPara.getStatus.mac, packet->mac, 6);
@@ -203,7 +203,7 @@ int meshAgent::operateDevice(byte* payload, unsigned int length)
     }
     const char* uuid = data["UUID"];
     const char* action = data["action"];
-    const char* value = data["value"];;
+    const char* value = data["value"];
 
     //DEBUG_MESH.printf("%s, uuid is %s, action is %s, value is %s\n", __FUNCTION__, uuid, action, value);
 
@@ -599,4 +599,14 @@ int meshAgent::hardwareReset()
 
 }
 
+void meshAgent::notifyMeshAgent(int networkConfiged)
+{
+    UART_PROTOCOL_DATA protData;
+
+    protData.protType = PROTOCOL_TYPE_NOTIFY_MESH_AGENT;
+    protData.protPayload.meshAGdata.networkConfiged = networkConfiged;
+
+    _deviceMp->sendUartProtocolData((byte*)&protData);  
+    DEBUG_MESH.printf("send network config state %d to meshAgent\n", networkConfiged);
+}
 
