@@ -154,6 +154,7 @@ void meshNode::deviceRegister()
     uint8 mac[6];
     char nd_mac[13] = {0};
     char gw_mac[13] = {0};
+    char dev_addr[5] = {0};
     char bssid[32] = {0};
     char type[9] = {0};
     char msg[256] = {0};
@@ -169,13 +170,15 @@ void meshNode::deviceRegister()
     sprintf(type, "%04x%04x", this->_type.firstType, this->_type.secondType);
     sprintf(nd_mac, "%02x%02x%02x%02x%02x%02x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
     sprintf(gw_mac, "%02x%02x%02x%02x%02x%02x", _gwMAC[0],_gwMAC[1],_gwMAC[2],_gwMAC[3],_gwMAC[4],_gwMAC[5]);
-
+    sprintf(dev_addr, "%04x", this->_devAddr);
     strcat(msg, "{\"type\":\"");
     strcat(msg, type);
     strcat(msg, "\",\"vendor\":\"AISmart\",\"MAC\":\"");
     strcat(msg, nd_mac);
     strcat(msg, "\",\"gatewayId\":\"");
     strcat(msg, gw_mac);
+    strcat(msg, "\",\"devAddr\":\"");
+    strcat(msg, dev_addr);
     strcat(msg, "\"}");
 
     _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_DEVICE_REGISTER), msg);
