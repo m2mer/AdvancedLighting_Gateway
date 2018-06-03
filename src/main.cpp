@@ -29,7 +29,11 @@ const char *mqtt_server = "www.futureSmart.top";
 const char *mqtt_client_prefix = "MESH-GW-";
 
 /* Global Variables */
-LOCAL_METADATA localMetadata;
+MESH_AGENT_METADATA localMetadata;
+MESH_NODE_METADATA *nodeMetadata = NULL;
+int numMeshNode = 0;
+
+/* Object instances */
 meshAgent localDevice;
 WifiManagement WifiMg;
 WiFiClient espClient;
@@ -51,11 +55,16 @@ void uartRxHandler(const char *buf, int len) {
 
 void flashDataResume()
 {
+}
+
+void flashDataStore()
+{
 
 }
 
 void smartConfigDone() {
     localMetadata.networkConfiged = 1;
+    localDevice.notifyMeshAgent(1);
     localMetadata.registered = 0;
 }
 
@@ -98,7 +107,9 @@ void setup() {
 
     /* fetch data from flash */
     flashDataResume();
+    localDevice.setNetworkConfiged(localMetadata.networkConfiged);
     localDevice.notifyMeshAgent(localMetadata.networkConfiged);
+    localDevice.setRegistered(localMetadata.registered);
     if(!localMetadata.networkConfiged)
         need_network_Cfg = 1;
 
@@ -123,20 +134,23 @@ void loop() {
         {
             WifiMg.connectWifi(0);
         }
-#if 1
-        if(!MQTTtp.connected())
-            MQTTtp.reconnect();
         else
         {
-            if(!localMetadata.registered)
+            /* reconnect MQTT broker */
+            if(!MQTTtp.connected())
             {
-                localDevice.deviceRegister();
-                localMetadata.registered = 1;
+                MQTTtp.reconnect();
             }
-            MQTTtp.loop();
+            else
+            {
+                if(localMetadata.registered == 0)
+                {
+                    localDevice.deviceRegister();
+                    localMetadata.registered = 1;
+                }
+                MQTTtp.loop();
+            }
         }
-
-#endif
 
         //serialEvent();
 

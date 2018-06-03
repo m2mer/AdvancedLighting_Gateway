@@ -52,6 +52,10 @@ public:
     void setDeviceType(uint8_t firstType, uint8_t secondType);
     void setDeviceUUID(const char* uuid);
     void setUserId(const char* userId);
+    void setRegistered(uint8_t flag);
+    uint8_t getRegistered();
+    void setRegisterTime(uint32_t time);
+    uint32_t getRegisterTime();
     void getMacAddress(byte *mac);
 
     void heartbeat();
@@ -65,6 +69,8 @@ public:
 
     /* handle uart message */
     virtual void receiveUARTmsg(byte *buf, int len){};
+
+    void loop();
 
 protected:
     deviceManipulation *_deviceMp;
@@ -81,21 +87,24 @@ protected:
     char _topicStateNoti[64];
     DEVICE_TYPE _type;
     byte _mac[6];
-    
+    uint8_t _registered;
+    uint32_t _registerTime;
+
 private:
     String _userId;
     String _UUID;
+
     uint32_t _lastHeartbeat;
     uint32_t _hbIntvlMs;
 
     void init();
-    int registrationNotify(byte* payload, unsigned int length);
     int appNotify(byte* payload, unsigned int length);
 
     virtual int operateDevice(byte* payload, unsigned int length){};
     virtual int getOverallStatus(byte* payload, unsigned int length){};
     virtual int getGroupStatus(byte* payload, unsigned int length){};
     virtual int deviceDelete(byte* payload, unsigned int length){};
+    virtual int registrationNotify(byte* payload, unsigned int length);
 };
 
 

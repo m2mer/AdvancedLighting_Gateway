@@ -69,7 +69,7 @@ boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
     sequence = status->sequence;
     segment = status->segment;
     DEBUG_MESH.printf("in seq %d, _seq %d, segMap 0x%0x\n", sequence,  _stAgg.sequence, _stAgg.segmentMap);
-
+#if 0
     if(sequence < _stAgg.sequence && sequence != 0)  // old status, abandon
         return false;                    
     else if(sequence == _stAgg.sequence && _stAgg.segmentMap == 0x03)  //repeated packet
@@ -79,26 +79,19 @@ boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
         _stAgg.segmentMap = 0;           
         _stAgg.sequence = sequence;
     }
+#endif
+    if(sequence == _stAgg.sequence && _stAgg.segmentMap == 0x03)  //repeated packet
+        return false;
+    if(sequence != _stAgg.sequence)
+    {
+        _stAgg.segmentMap &= 0xe0;    //clear segment0       
+        _stAgg.sequence = sequence;
+    }
 
     switch(segment)
     {
         case MESH_OVERALL_STATUS_I:
-            _stAgg.segmentMap |= 0x01;
-            setMAC(statusI->mac); 
-            setDeviceType(statusI->firstType, statusI->secondType);      
-            memcpy(_stAgg.status.mac, statusI->mac, 6);
-            _stAgg.status.firstType = statusI->firstType;
-            _stAgg.status.secondType = statusI->secondType;
-
-            /* a new paired node, register to cloud */
-            if(sequence == 0)
-            {
-                DEBUG_MESH.printf("new node, register to cloud\n");
-                this->deviceRegister();
-            }
-            break;
-        case MESH_OVERALL_STATUS_II:
-            _stAgg.segmentMap |= 0x02;         
+            _stAgg.segmentMap |= 0x01;         
             _stAgg.status.group = statusII->group;
             _stAgg.status.onoff = statusII->onoff;
             _stAgg.status.lightness = statusII->lightness;
@@ -110,7 +103,22 @@ boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
                 _stAgg.status.color.h = statusII->rgbcw.color.h;
                 _stAgg.status.color.s = statusII->rgbcw.color.s;
                 _stAgg.status.color.v = statusII->rgbcw.color.v; 
-            }                                                                  
+            }   
+            break;
+        case MESH_OVERALL_STATUS_II:
+            _stAgg.segmentMap |= 0x02;
+            setMAC(statusI->mac); 
+            setDeviceType(statusI->firstType, statusI->secondType);      
+            memcpy(_stAgg.status.mac, statusI->mac, 6);
+            _stAgg.status.firstType = statusI->firstType;
+            _stAgg.status.secondType = statusI->secondType;
+
+            /* a new paired node, register to cloud */
+            if(sequence == 0)
+            {
+                DEBUG_MESH.printf("new node, register to cloud\n");
+                this->deviceRegister();
+            }                                                               
             break;
         case MESH_OVERALL_STATUS_III:
             _stAgg.segmentMap |= 0x04; 
@@ -145,6 +153,7 @@ int meshNode::checkStatusUpdateSeq(uint8_t sequence)
         return RET_ERROR;
     }
 
+    /* status offline will make sequence 0, to avoid node sequence become old after reboot */
     _stUpdSeq = sequence;
     return RET_OK;
 }

@@ -20,7 +20,22 @@
 
 
 
+#define MESH_NODE_NUM_MAX    64
 
+
+typedef struct
+{
+    uint8_t networkConfiged;
+    uint8_t registered;
+}MESH_AGENT_METADATA;
+
+typedef struct
+{
+    uint8_t mac[6];
+    uint16_t deviceAddress;    
+    uint8_t registered;
+    uint8_t reserved;
+}MESH_NODE_METADATA;
 
 template <typename T>
 class advLinkedList:public LinkedList<T> 
@@ -48,12 +63,20 @@ public:
     int getMeshNodeDevAddr(byte *mac, uint16_t *devAddr);
     int getMeshNodeMAC(uint16_t *devAddr, byte *mac);
 
+    void setNetworkConfiged(int flag);
+    int getNetworkConfged();
     void notifyMeshAgent(int networkConfiged);
     void deviceRegister();
     int hardwareReset();
+
+    void resumeMetaData();
+    void storeMetaData();
+    void metaInfoManage();
     
     /* handle mesh message */
     void receiveUARTmsg(byte *buf, int len);
+
+    void loop();
 
 private:
 
@@ -62,11 +85,15 @@ private:
     advLinkedList<meshNode> _meshNodeList;
     //meshNode* _meshNodePool[256];    // alternative method to maintain mesh nodes
 
+    uint8_t _networkConfiged;
+    uint32_t _metaInfoTime;
+
     /* handle mqtt message */
     int operateDevice(byte* payload, unsigned int length);
     int getOverallStatus(byte* payload, unsigned int length);
     int getGroupStatus(byte* payload, unsigned int length);
     int deviceDelete(byte* payload, unsigned int length);
+    int registrationNotify(byte* payload, unsigned int length);
 
     /* handle message from peer uart */    
     void recvStatusUpdate(uint16_t nodeAddr, byte *buf);

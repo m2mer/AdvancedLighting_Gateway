@@ -72,6 +72,26 @@ void smartDevice::setUserId(const char* userId)
     _userId = String(userId);
 }
 
+void smartDevice::setRegistered(uint8_t flag)
+{
+    _registered = flag;
+}
+
+uint8_t smartDevice::getRegistered()
+{
+   return _registered;
+}
+
+void smartDevice::setRegisterTime(uint32_t time)
+{
+    _registerTime = time;
+}
+
+uint32_t smartDevice::getRegisterTime()
+{
+    return _registerTime;
+}
+
 void smartDevice::getMacAddress(byte *mac)
 {
     memcpy(mac, _mac, 6);
@@ -129,9 +149,10 @@ void smartDevice::heartbeat()
     char mac_str[12] = {0};
     char msg[256] = {0};
     uint32_t now = millis();
+
     if((now - _lastHeartbeat) < _hbIntvlMs)
-        return;
-    
+        return; 
+
     _lastHeartbeat = now;
 
     getMacAddress(mac);
@@ -154,7 +175,7 @@ void smartDevice::deviceRegister()
 
     /* subscribe registration_notify first */
     _deviceMp->mqttSubscribe(_topicRegNoti);
-    _deviceMp->mqttClient->loop();
+    _registerTime = millis();
 
     getMacAddress(mac);
     WiFi.BSSIDstr().toCharArray(bssid, 32, 0);
@@ -208,6 +229,7 @@ int smartDevice::registrationNotify(byte* payload, unsigned int length)
 
     setUserId(userId);
     setMQTTDynTopic();
+    setRegistered(1);
 
     _deviceMp->mqttUnsubscribe(_topicRegNoti);
     _deviceMp->mqttSubscribe(_topicGetSt);
@@ -230,4 +252,9 @@ int smartDevice::appNotify(byte* payload, unsigned int length)
 
     _hbIntvlMs = atoi(hbIntvl);
 
+}
+
+void smartDevice::loop()
+{
+    heartbeat();
 }

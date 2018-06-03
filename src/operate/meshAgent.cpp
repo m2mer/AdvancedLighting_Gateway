@@ -239,6 +239,52 @@ int meshAgent::operateDevice(byte* payload, unsigned int length)
     return RET_ERROR;
 }
 
+int meshAgent::registrationNotify(byte* payload, unsigned int length)
+{
+    StaticJsonBuffer<200> jsonBuffer;
+    JsonObject& data = jsonBuffer.parse(payload);
+    if(!data.success()){
+        return RET_ERROR;
+    }
+
+    const char* uuid = data["deviceId"];
+    const char* userId = data["userId"];
+    DEBUG_MESH.printf("%s, deviceId %s, userId %s, ok\n", __FUNCTION__, uuid, userId);
+
+    byte mac[6] = {0};
+    _getMeshCommandBinary(uuid, mac);
+    /* registration notify for gateway */
+    if(strncmp((const char*)mac, (const char*)_mac, 6) == 0)
+    {
+        DEBUG_MESH.printf("gateway registration notified\n");
+        setUserId(userId);
+        setMQTTDynTopic();
+        setRegistered(1);
+
+        _deviceMp->mqttUnsubscribe(_topicRegNoti);
+        _deviceMp->mqttSubscribe(_topicGetSt);
+        _deviceMp->mqttSubscribe(_topicDevOp);
+        _deviceMp->mqttSubscribe(_topicGetGrpSt);
+    }
+    /* registration notify for nodes */
+    else
+    {
+        int cnt = _meshNodeList.size();
+        byte nodeMac[6] = {0};
+        for(int i=0; i<cnt; i++)
+        {
+            ListNode<meshNode> *node = _meshNodeList.getNodePtr(i);
+            node->data.getMacAddress(nodeMac);
+            if(strcmp((const char*)mac, (const char*)nodeMac) == 0)
+            {
+                DEBUG_MESH.printf("node registration notified\n");
+                node->data.setRegistered(1);
+            }
+        }
+    }
+
+}
+
 /* 
  * interface to receive message of mesh node from peer uart
  * 
@@ -399,6 +445,7 @@ void meshAgent::recvResetFactory(uint16_t nodeAddr, byte *buf)
     uint16_t devAddr = nodeAddr;
     char msg[256] = {0};
     char uuid[12] = {0};
+    byte nodeMac[6];
 
     DEBUG_MESH.printf("%s, devAddr 0x%04x\n", __FUNCTION__, devAddr);
 
@@ -416,17 +463,18 @@ void meshAgent::recvResetFactory(uint16_t nodeAddr, byte *buf)
             DEBUG_MESH.printf("found node\n");
 
             /* package into mqtt message and send */
-            sprintf(uuid, "%0x%0x%0x%0x%0x%0x", _mac[0],_mac[1],_mac[2],_mac[3],_mac[4],_mac[5]);
+            node->data.getMacAddress(nodeMac);
+            sprintf(uuid, "%0x%0x%0x%0x%0x%0x", nodeMac[0],nodeMac[1],nodeMac[2],nodeMac[3],nodeMac[4],nodeMac[5]);
             strcat(msg, "{\"UUID\":\"");
             strncat(msg, uuid, 12);
-            strcat(msg, "\",\"attribute\":\"");
+            strcat(msg, "\",\"attribute\":");
             if(notify->flag == DEVICE_RESET_SOFTWARE_DELETED)
                 strcat(msg, "\"device_deleted\"}");
             else
                 strcat(msg, "\"hardware_reset\"}");
 
             _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_STATE_NOTIFY), msg);
-            DEBUG_MESH.printf("send state notify to cloud\n");
+            DEBUG_MESH.printf("send state notify to cloud, %s\n", msg);
 
             //TBD, delete node?
             _meshNodeList.remove(i);
@@ -455,7 +503,7 @@ void meshAgent::recvPairedNotify(uint16_t nodeAddr, byte *buf)
     {
         memcpy(_meshMAC, notify->mac, 6);
         /* gateway register to cloud */
-        this->deviceRegister();
+        //this->deviceRegister();    //wait wifi to be configured
     }
     else
     {
@@ -504,6 +552,7 @@ void meshAgent::deviceRegister()
 
     /* subscribe registration_notify first */
     _deviceMp->mqttSubscribe(_topicRegNoti);
+    _registerTime = millis();
 
     getMacAddress(mac);
     WiFi.BSSIDstr().toCharArray(bssid, 32, 0);
@@ -599,6 +648,16 @@ int meshAgent::hardwareReset()
 
 }
 
+void meshAgent::setNetworkConfiged(int flag)
+{
+    _networkConfiged = flag;
+}
+
+int meshAgent::getNetworkConfged()
+{
+    return _networkConfiged;
+}
+
 void meshAgent::notifyMeshAgent(int networkConfiged)
 {
     UART_PROTOCOL_DATA protData;
@@ -610,3 +669,61 @@ void meshAgent::notifyMeshAgent(int networkConfiged)
     DEBUG_MESH.printf("send network config state %d to meshAgent\n", networkConfiged);
 }
 
+void meshAgent::metaInfoManage()
+{
+    MESH_NODE_METADATA _nodeMeta[MESH_NODE_NUM_MAX];
+    int storeId = 0;
+    uint32_t now = millis();
+    int needStore = 0;
+
+    if((now - _metaInfoTime) < 5000)
+        return; 
+
+    _metaInfoTime = now;
+
+    /* gateway need register again */
+    if(_registered == 0 && _registerTime != 0 && (now-_registerTime)> 5000)
+    {
+        deviceRegister();
+        _registerTime = now;
+    }
+    /* gateway registered */
+    else if(_registered == 1 && _registerTime != 0)
+        needStore = 1;
+
+    int cnt = _meshNodeList.size();
+    meshNode *node = NULL;
+    byte nodeMac[6] = {0};
+    for(int i=0; i<cnt; i++)
+    {
+        ListNode<meshNode> *nodeList = _meshNodeList.getNodePtr(i);
+        node = &nodeList->data;
+        /* node need register again */
+        if(node->getRegistered() == 0 && node->getRegisterTime() != 0 && (now-node->getRegisterTime())> 5000)
+        {
+            node->deviceRegister();
+            node->setRegisterTime(now);
+        }
+        /* node registered */
+        else if(node->getRegistered() == 1 && node->getRegisterTime() != 0)
+            needStore = 1;
+
+        node->getMacAddress(nodeMac);
+        _nodeMeta[storeId].deviceAddress = node->getDevAddr();
+        memcpy(_nodeMeta[storeId].mac, nodeMac, 6);
+        _nodeMeta[storeId].registered = node->getRegistered();
+        storeId++;
+    }
+
+    if(needStore)
+    {
+        //TBD, restore to flash
+    }
+}
+
+void meshAgent::loop()
+{
+
+    heartbeat();
+    metaInfoManage();
+}
