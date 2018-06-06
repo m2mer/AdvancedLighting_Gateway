@@ -47,6 +47,7 @@ void meshNode::setGatewayMAC(uint8_t *mac)
 void meshNode::clearStatus()
 {
     memset(&this->_stAgg, 0, sizeof(OVERALL_STATUS_AGGREGATION));
+    /* make sequence 0 when offline, to avoid node sequence become old after reboot */
     _stUpdSeq = 0;
 }
 
@@ -84,7 +85,7 @@ boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
         return false;
     if(sequence != _stAgg.sequence)
     {
-        _stAgg.segmentMap &= 0xe0;    //clear segment0       
+        _stAgg.segmentMap &= 0xe0;    //only clear segment0, to speed up overall_status       
         _stAgg.sequence = sequence;
     }
 
@@ -153,7 +154,6 @@ int meshNode::checkStatusUpdateSeq(uint8_t sequence)
         return RET_ERROR;
     }
 
-    /* status offline will make sequence 0, to avoid node sequence become old after reboot */
     _stUpdSeq = sequence;
     return RET_OK;
 }

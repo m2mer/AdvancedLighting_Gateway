@@ -30,10 +30,7 @@ void deviceManipulation::mqttUnsubscribe(char* topic)
 
 void deviceManipulation::mqttPublish(char* topic, char* msg)
 {
-    if(mqttClient->publish(topic, msg))
-        Serial1.printf("publish success\n");
-    else
-        Serial1.printf("publish fail\n");
+    mqttClient->publish(topic, msg);
 }
 
 /*

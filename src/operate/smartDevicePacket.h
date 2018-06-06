@@ -44,6 +44,11 @@ typedef enum {
 	SMART_LIGHT_MODE_SCENE = 4,
 }SMART_LIGHT_MODE;
 
+typedef struct {
+	uint16_t temperature;
+	uint8_t lightness;
+	uint8_t reserved;
+}DEVICE_CT;
 
 typedef struct {
     uint16_t h;
@@ -51,13 +56,22 @@ typedef struct {
     uint8_t v;
 }DEVICE_COLOR;
 
+typedef struct {
+    uint8_t onoff;
+    uint8_t lightness;
+    uint8_t group;
+    uint8_t reserved;
+}DEVICE_BRIEF;
+
 typedef union {
 	uint8_t offline;
     uint8_t onoff;
     uint8_t lightness;
     uint8_t mode;
-    uint16_t temperature;
+    uint8_t group;
+    DEVICE_CT temperature;
     DEVICE_COLOR color;
+    DEVICE_BRIEF brief;
     uint16_t timerOn;
     uint16_t timerOff;
 }DEVICE_FUNCTION_PARA;
@@ -100,7 +114,7 @@ typedef enum {
 	MESH_DEVICE_FUNCTION_TIMER_OFF = 6,
 	MESH_DEVICE_FUNCTION_GROUP_CFG = 7,
 	MESH_DEVICE_FUNCTION_OFFLINE = 8,
-	MESH_DEVICE_FUNCTION_HEELIGHT = 9,
+	MESH_DEVICE_FUNCTION_BRIEF = 9,
 }MESH_DEVICE_FUNCTION_TYPE;
 
 

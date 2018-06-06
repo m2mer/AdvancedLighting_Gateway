@@ -82,15 +82,32 @@ int meshAgent::getMeshNodeDevAddr(byte *mac, uint16_t *devAddr)
     int cnt = _meshNodeList.size();
     meshNode node;
     byte nodeMac[6] = {0};
+    byte bcMac[6] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
 
-    for(int i=0; i<cnt; i++)
+    /* all */
+    if(strncmp((const char*)bcMac, (const char*)mac, 6) == 0)
     {
-        node = _meshNodeList.get(i);
-        node.getMacAddress(nodeMac);
-        if(strncmp((const char*)nodeMac, (const char*)mac, 6) == 0)
+        *devAddr = 0xFFFF;
+        return RET_OK;
+    }
+    /* group, 0xFF01 */
+    else if(strncmp((const char*)(bcMac+1), (const char*)(mac+1), 5) == 0)
+    {
+        *devAddr = (0xFF<<8) + (mac[0]); 
+        return RET_OK;
+    }
+    /* uni node */
+    else
+    {
+        for(int i=0; i<cnt; i++)
         {
-            *devAddr = node.getDevAddr();
-            return RET_OK;
+            node = _meshNodeList.get(i);
+            node.getMacAddress(nodeMac);
+            if(strncmp((const char*)nodeMac, (const char*)mac, 6) == 0)
+            {
+                *devAddr = node.getDevAddr();
+                return RET_OK;
+            }
         }
     }
 
@@ -117,9 +134,15 @@ int meshAgent::getOverallStatus(byte* payload, unsigned int length)
     if(!data.success()){
         return RET_ERROR;
     }
+    
     const char* uuid = data["UUID"];
     const char* action = data["action"];
     const char* value = data["value"];
+    if(uuid == NULL || action == NULL || value == NULL)
+    {
+        DEBUG_MESH.printf("%s, parameter error!\n", __FUNCTION__);
+        return RET_ERROR;
+    }
 
     //DEBUG_MESH.printf("%s, uuid is %s, action is %s, value is %s\n", __FUNCTION__, uuid, action, value);
 
@@ -204,6 +227,11 @@ int meshAgent::operateDevice(byte* payload, unsigned int length)
     const char* uuid = data["UUID"];
     const char* action = data["action"];
     const char* value = data["value"];
+    if(uuid == NULL || action == NULL || value == NULL)
+    {
+        DEBUG_MESH.printf("%s, parameter error!\n", __FUNCTION__);
+        return RET_ERROR;
+    }
 
     //DEBUG_MESH.printf("%s, uuid is %s, action is %s, value is %s\n", __FUNCTION__, uuid, action, value);
 
@@ -249,6 +277,12 @@ int meshAgent::registrationNotify(byte* payload, unsigned int length)
 
     const char* uuid = data["deviceId"];
     const char* userId = data["userId"];
+    if(uuid == NULL || userId == NULL)
+    {
+        DEBUG_MESH.printf("%s, parameter error!\n", __FUNCTION__);
+        return RET_ERROR;
+    }
+
     DEBUG_MESH.printf("%s, deviceId %s, userId %s, ok\n", __FUNCTION__, uuid, userId);
 
     byte mac[6] = {0};
@@ -275,7 +309,7 @@ int meshAgent::registrationNotify(byte* payload, unsigned int length)
         {
             ListNode<meshNode> *node = _meshNodeList.getNodePtr(i);
             node->data.getMacAddress(nodeMac);
-            if(strcmp((const char*)mac, (const char*)nodeMac) == 0)
+            if(strncmp((const char*)mac, (const char*)nodeMac, 6) == 0)
             {
                 DEBUG_MESH.printf("node registration notified\n");
                 node->data.setRegistered(1);
@@ -346,6 +380,7 @@ void meshAgent::recvStatusUpdate(uint16_t nodeAddr, byte *buf)
         {
             DEBUG_MESH.printf("found node\n");
 
+            memset(&stPkt, 0, sizeof(MESH_DEVICE_STATUS_UPDATE));
             stPkt.command = LGT_CMD_ADVLIGHT_STATUS_UPDT;
             node->data.getMacAddress(stPkt.mac);
             stPkt.funcType = update->funcType;
@@ -662,6 +697,7 @@ void meshAgent::notifyMeshAgent(int networkConfiged)
 {
     UART_PROTOCOL_DATA protData;
 
+    memset(&protData, 0, sizeof(UART_PROTOCOL_DATA));
     protData.protType = PROTOCOL_TYPE_NOTIFY_MESH_AGENT;
     protData.protPayload.meshAGdata.networkConfiged = networkConfiged;
 
@@ -676,13 +712,13 @@ void meshAgent::metaInfoManage()
     uint32_t now = millis();
     int needStore = 0;
 
-    if((now - _metaInfoTime) < 5000)
+    if((now - _metaInfoTime) < 10000)
         return; 
 
     _metaInfoTime = now;
 
     /* gateway need register again */
-    if(_registered == 0 && _registerTime != 0 && (now-_registerTime)> 5000)
+    if(_registered == 0 && (now-_registerTime)> 10000)
     {
         deviceRegister();
         _registerTime = now;
@@ -698,8 +734,9 @@ void meshAgent::metaInfoManage()
     {
         ListNode<meshNode> *nodeList = _meshNodeList.getNodePtr(i);
         node = &nodeList->data;
+
         /* node need register again */
-        if(node->getRegistered() == 0 && node->getRegisterTime() != 0 && (now-node->getRegisterTime())> 5000)
+        if(node->getRegistered() == 0 && (now-node->getRegisterTime())> 10000)
         {
             node->deviceRegister();
             node->setRegisterTime(now);
@@ -713,6 +750,10 @@ void meshAgent::metaInfoManage()
         memcpy(_nodeMeta[storeId].mac, nodeMac, 6);
         _nodeMeta[storeId].registered = node->getRegistered();
         storeId++;
+
+        DEBUG_MESH.printf("\n--devAddr: 0x%04x\n", node->getDevAddr());
+        DEBUG_MESH.printf("--mac: 0x%02x%02x%02x%02x%02x%02x\n", nodeMac[0],
+                            nodeMac[1],nodeMac[2],nodeMac[3],nodeMac[4],nodeMac[5]);
     }
 
     if(needStore)

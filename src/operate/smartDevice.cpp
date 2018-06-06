@@ -41,9 +41,10 @@ void smartDevice::init()
 
     memcpy(_topicRegister, "device/device_register", 64);
     memcpy(_topicRegNoti, "device/registration_notify", 64);
+    memcpy(_topicStateNoti, "device/state_notify", 64);  
 
     _lastHeartbeat = 0;     
-    _hbIntvlMs = 1000;    //300*1000, 5min         
+    _hbIntvlMs = 3000;    //300*1000, 5min         
 }
 
 void smartDevice::setDeviceManipulator(deviceManipulation *deviceMp)
@@ -109,8 +110,7 @@ void smartDevice::setMQTTDynTopic()
     /* pub topics */
     memcpy(_topicStUpd, "device/status_update", 64);
     memcpy(_topicOvaSt, "device/status_reply", 64);           
-    memcpy(_topicGrpSt, "device/status_group", 64);
-    memcpy(_topicStateNoti, "device/state_notify", 64);          
+    memcpy(_topicGrpSt, "device/status_group", 64);        
 }
 
 char* smartDevice::getMQTTtopic(DEVICE_MQTT_TOPIC topic)
@@ -128,7 +128,9 @@ char* smartDevice::getMQTTtopic(DEVICE_MQTT_TOPIC topic)
         case SUB_TOPIC_APP_NOTIFY:
             return _topicAppNoti;
         case SUB_TOPIC_DEVICE_DELETE:
-            return _topicDeviceDel;      
+            return _topicDeviceDel;
+        case PUB_TOPIC_STATUS_UPDATE:
+            return _topicStUpd;              
         case PUB_TOPIC_OVERALL_STATUS:
             return _topicOvaSt;
         case PUB_TOPIC_GROUP_STATUS:
@@ -161,7 +163,7 @@ void smartDevice::heartbeat()
     strcat(msg, mac_str);
     strcat(msg, "\",\"attribute\":\"heartbeat\"}");
 
-    DEBUG_DEVICE.printf("\nbegin to pub %s\n", msg);
+    //DEBUG_DEVICE.printf("\nbegin to pub %s\n", msg);
     _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_STATE_NOTIFY), msg);
 }
 

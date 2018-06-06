@@ -143,11 +143,14 @@ void loop() {
             }
             else
             {
+                /*
                 if(localMetadata.registered == 0)
                 {
                     localDevice.deviceRegister();
                     localMetadata.registered = 1;
                 }
+                */
+                localDevice.loop();
                 MQTTtp.loop();
             }
         }
