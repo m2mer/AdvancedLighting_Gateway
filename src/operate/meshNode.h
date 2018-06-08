@@ -49,18 +49,19 @@ public:
     meshNode(byte *mac, uint16_t devAddr);
     ~meshNode(){};
 
-    void setGatewayMAC(uint8_t *mac);
     uint16_t getDevAddr();
     boolean aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg);
+    uint8_t getAggBuffId();
+    void setAggBuffId(uint8_t id);
     void clearStatus();
     int checkStatusUpdateSeq(uint8_t sequence);
-    void deviceRegister();
+    void deviceRegister(uint8_t *gwMac);
 
 private:
     uint16_t _devAddr;
-    uint8_t _gwMAC[6];    //gateway mac
     uint32_t _lastActive;
-    OVERALL_STATUS_AGGREGATION _stAgg;
+    //OVERALL_STATUS_AGGREGATION _stAgg;
+    uint8_t _aggBuffId;
     uint8_t _stUpdSeq;
 
     void init();

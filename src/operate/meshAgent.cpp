@@ -22,11 +22,17 @@ ListNode<T>* advLinkedList<T>::getNodePtr(int index)
 
 meshAgent::meshAgent()
 {
-    setDeviceType(SMART_DEVICE_TYPE_MESH_GATEWAY, SMART_SERVICE_DEFAULT); 
+    _init();
 }
 meshAgent::meshAgent(byte *mac):smartDevice(mac)
 {
-    setDeviceType(SMART_DEVICE_TYPE_MESH_GATEWAY, SMART_SERVICE_DEFAULT);      
+    _init();      
+}
+
+void meshAgent::_init()
+{
+    setDeviceType(SMART_DEVICE_TYPE_MESH_GATEWAY, SMART_SERVICE_DEFAULT); 
+    memset(_aggBuff, 0, sizeof(AGGREGATION_UNIT)*8);
 }
 
 boolean meshAgent::isMeshNodeExist(byte *mac)
@@ -383,6 +389,7 @@ void meshAgent::recvStatusUpdate(uint16_t nodeAddr, byte *buf)
             memset(&stPkt, 0, sizeof(MESH_DEVICE_STATUS_UPDATE));
             stPkt.command = LGT_CMD_ADVLIGHT_STATUS_UPDT;
             node->data.getMacAddress(stPkt.mac);
+            stPkt.sequence = update->sequence;
             stPkt.funcType = update->funcType;
             stPkt.status = update->funcPara;
             if(stPkt.funcType == MESH_DEVICE_FUNCTION_OFFLINE)
@@ -420,13 +427,15 @@ void meshAgent::recvOverallStatus(uint16_t nodeAddr, byte *buf)
         DEBUG_MESH.printf("invalid devAddr\n");
         return;
     }
-
+#if 1
     for(int i=0; i<cnt; i++)
     {
         ListNode<meshNode> *node = _meshNodeList.getNodePtr(i);
         if(devAddr == node->data.getDevAddr())
         {
-            DEBUG_MESH.printf("found node\n");
+            uint8_t aggBuffId = node->data.getAggBuffId();
+            DEBUG_MESH.printf("found node, aggBuffId %d,\n", aggBuffId);
+            #if 0
             /* all status segments ready */
             if(node->data.aggregateStatus(buf, &stAgg))
             {
@@ -440,22 +449,77 @@ void meshAgent::recvOverallStatus(uint16_t nodeAddr, byte *buf)
                 _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_OVERALL_STATUS), stMsg);
                 DEBUG_MESH.printf("overall status ready, reply\n");
             }
+            #endif
 
+            if(aggBuffId != 0xff)
+            {
+                if(aggregateStatus(aggBuffId, buf, &stAgg))
+                {
+                    node->data.setMAC(stAgg.status.mac); 
+                    node->data.setDeviceType(stAgg.status.firstType, stAgg.status.secondType); 
+
+                    memset(&stPkt, 0, sizeof(MESH_DEVICE_OVERALL_STATUS));
+                    stPkt.command = LGT_CMD_ADVLIGHT_OVERALL_STATUS;
+                    stPkt.sequence = status->sequence;
+                    memcpy(&stPkt.status, &stAgg.status, sizeof(MESH_NODE_OVERALL_STATUS));
+
+                    /* package into mqtt message and send */
+                    _packageMeshAgentMsg((char*)&stPkt, sizeof(MESH_DEVICE_OVERALL_STATUS), stMsg);
+                    _deviceMp->mqttPublish(getMQTTtopic(PUB_TOPIC_OVERALL_STATUS), stMsg);
+                    DEBUG_MESH.printf("overall status ready, reply\n");   
+                    
+                    _aggBuff[aggBuffId].devAddr = 0;
+                    _aggBuff[aggBuffId].startTime = 0; 
+                    _aggBuff[aggBuffId].agg.segmentMap = 0;
+                    _aggBuff[aggBuffId].agg.sequence = 0;
+                    node->data.setAggBuffId(0xff);                                    
+                }
+            }
             return;
         }
     }
-
+#endif
     /* no mesh node found, add new node */
     nodeP = new meshNode(devAddr);
+    DEBUG_MESH.printf("create node\n");
     if(!nodeP)
     {
         DEBUG_MESH.printf("new meshNode fail!\n");
         return;
-    }     
-    nodeP->setGatewayMAC(_mac);
+    }
     nodeP->setDeviceManipulator(this->_deviceMp);
+
+    for(int i=0; i<AGGREGATION_UNIT_NUM; i++)
+    {
+        if(_aggBuff[i].devAddr == 0)
+        {
+            nodeP->setAggBuffId(i);
+            aggregateStatus(i, buf, &stAgg);
+            _aggBuff[i].devAddr = devAddr;
+            _aggBuff[i].startTime = millis();            
+            break;
+        }
+    }
+
+    /* must be at last */
     this->_meshNodeList.add(*nodeP);
-    nodeP->aggregateStatus(buf, &stAgg);
+
+    /* strange memory issue, member variable of node can't be set */
+#if 0
+    //nodeP->aggregateStatus(buf, &stAgg);
+    for(int i=0; i<8; i++)
+    {
+        if(_aggBuff[i].devAddr == 0)
+        {
+            nodeP->setAggBuffId(i);
+            aggregateStatus(i, buf, &stAgg);
+            _aggBuff[i].devAddr = devAddr;
+            _aggBuff[i].startTime = millis()>>16;
+            break;        
+        }
+    }
+#endif
+
 }
 
 /* 
@@ -540,6 +604,7 @@ void meshAgent::recvPairedNotify(uint16_t nodeAddr, byte *buf)
         /* gateway register to cloud */
         //this->deviceRegister();    //wait wifi to be configured
     }
+    /* depracted for node */
     else
     {
         for(id; id<cnt; id++)
@@ -560,13 +625,12 @@ void meshAgent::recvPairedNotify(uint16_t nodeAddr, byte *buf)
                 DEBUG_MESH.printf("new meshNode fail!\n");
                 return;
             }
-            nodeP->setGatewayMAC(_mac);
             nodeP->setDeviceType(notify->firstType, notify->secondType);  
             this->_meshNodeList.add(*nodeP);
         }
 
         /* mesh node register to cloud */
-        nodeP->deviceRegister();
+        nodeP->deviceRegister(_mac);
     }
 
 }
@@ -664,6 +728,76 @@ void meshAgent::_packageMeshAgentMsg(char *buf, int len, char *msg)
     DEBUG_DEVICE.printf("gen msg: %s\n", msg);
 }
 
+boolean meshAgent::aggregateStatus(int buffId, byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
+{
+    uint8_t sequence = 0;
+    uint8_t segment = 0;
+    MESH_COMMAND_OVERALL_STATUS *status = (MESH_COMMAND_OVERALL_STATUS*) buf;
+    MESH_COMMAND_OVERALL_STATUS_I *statusI = (MESH_COMMAND_OVERALL_STATUS_I*) (buf+2);
+    MESH_COMMAND_OVERALL_STATUS_II *statusII = (MESH_COMMAND_OVERALL_STATUS_II*) (buf+2);
+    OVERALL_STATUS_AGGREGATION *agg = &(_aggBuff[buffId].agg);
+
+    if(!buf)
+    {
+        DEBUG_MESH.println("buf is null");
+        return false;
+    }
+
+    sequence = status->sequence;
+    segment = status->segment;
+    DEBUG_MESH.printf("in seq %d, _seq %d, segMap 0x%0x\n", sequence,  agg->sequence, agg->segmentMap);
+
+    if(sequence == agg->sequence && agg->segmentMap == 0x03)  //repeated packet
+        return false;
+    if(sequence != agg->sequence)
+    {
+        agg->segmentMap &= 0x0e;    //only clear segment0, to speed up overall_status       
+        agg->sequence = sequence;
+    }
+
+    switch(segment)
+    {
+        case MESH_OVERALL_STATUS_I:
+            agg->segmentMap |= 0x01;         
+            agg->status.group = statusII->group;
+            agg->status.onoff = statusII->onoff;
+            agg->status.lightness = statusII->lightness;
+            agg->status.mode = statusII->mode;
+            if(agg->status.mode == SMART_LIGHT_TYPE_WC)
+                agg->status.temperature = statusII->rgbcw.temperature;
+            else if(agg->status.mode == SMART_LIGHT_TYPE_RGB)
+            {
+                agg->status.color.h = statusII->rgbcw.color.h;
+                agg->status.color.s = statusII->rgbcw.color.s;
+                agg->status.color.v = statusII->rgbcw.color.v; 
+            }   
+            break;
+        case MESH_OVERALL_STATUS_II:
+            agg->segmentMap |= 0x02;     
+            memcpy(agg->status.mac, statusI->mac, 6);
+            agg->status.firstType = statusI->firstType;
+            agg->status.secondType = statusI->secondType;
+
+            /* a new paired node, register to cloud */
+            if(sequence == 0)
+            {
+                DEBUG_MESH.printf("new node, register to cloud\n");
+                this->deviceRegister();
+            }                                                               
+            break;
+    }
+
+    DEBUG_MESH.printf("%s, segmentMap %d\n", __FUNCTION__, agg->segmentMap);
+    if(agg->segmentMap == 0x03)  //0x0f
+    {
+        memcpy(stAgg, agg, sizeof(OVERALL_STATUS_AGGREGATION));
+        return true;
+    }
+    else
+        return false;
+
+}
+
 int meshAgent::hardwareReset()
 {
     char msg[256] = {0};
@@ -734,18 +868,18 @@ void meshAgent::metaInfoManage()
     {
         ListNode<meshNode> *nodeList = _meshNodeList.getNodePtr(i);
         node = &nodeList->data;
+        node->getMacAddress(nodeMac);
 
         /* node need register again */
-        if(node->getRegistered() == 0 && (now-node->getRegisterTime())> 10000)
+        if(nodeMac[0] != 0 && node->getRegistered() == 0 && (now-node->getRegisterTime())> 10000)
         {
-            node->deviceRegister();
+            node->deviceRegister(_mac);
             node->setRegisterTime(now);
         }
         /* node registered */
         else if(node->getRegistered() == 1 && node->getRegisterTime() != 0)
             needStore = 1;
 
-        node->getMacAddress(nodeMac);
         _nodeMeta[storeId].deviceAddress = node->getDevAddr();
         memcpy(_nodeMeta[storeId].mac, nodeMac, 6);
         _nodeMeta[storeId].registered = node->getRegistered();
@@ -762,9 +896,46 @@ void meshAgent::metaInfoManage()
     }
 }
 
+void meshAgent::aggBuffManage()
+{
+    int cnt = _meshNodeList.size();
+    uint32_t now = millis();
+    int needStore = 0;
+
+    if((now - _aggBuffMgTime) < 1000)
+        return; 
+
+    _aggBuffMgTime = now;
+
+    for(int i=0; i<AGGREGATION_UNIT_NUM; i++)
+    {
+        if(_aggBuff[i].devAddr != 0 && _aggBuff[i].startTime != 0
+            && (now - _aggBuff[i].startTime > 1000) && _aggBuff[i].agg.segmentMap != 0x03)
+            {
+                DEBUG_MESH.printf("node 0x%02x overall_status exceeds 1s, quit aggBuff\n", _aggBuff[i].devAddr);                 
+                _aggBuff[i].devAddr = 0;
+                _aggBuff[i].startTime = 0;
+                _aggBuff[i].agg.segmentMap = 0;
+                _aggBuff[i].agg.sequence = 0;
+
+                for(int i=0; i<cnt; i++)
+                {
+                    ListNode<meshNode> *node = _meshNodeList.getNodePtr(i);
+                    if(node->data.getDevAddr() == _aggBuff[i].devAddr) 
+                    {
+                        node->data.setAggBuffId(0xff);
+                        break;
+                    }               
+                }         
+            }
+
+    }
+}
+
 void meshAgent::loop()
 {
 
+    aggBuffManage();
     heartbeat();
     metaInfoManage();
 }

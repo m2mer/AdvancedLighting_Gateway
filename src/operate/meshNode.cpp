@@ -31,7 +31,8 @@ meshNode::meshNode(byte *mac, uint16_t devAddr):smartDevice(mac)
 
 void meshNode::init()
 {
-    memset(&_stAgg, 0, sizeof(OVERALL_STATUS_AGGREGATION));
+    //memset(&_stAgg, 0, sizeof(OVERALL_STATUS_AGGREGATION));
+    _aggBuffId = 0xff;
 }
 
 uint16_t meshNode::getDevAddr()
@@ -39,18 +40,26 @@ uint16_t meshNode::getDevAddr()
     return _devAddr;
 }
 
-void meshNode::setGatewayMAC(uint8_t *mac)
-{
-    memcpy(_gwMAC, mac, 6);
-}
-
 void meshNode::clearStatus()
 {
-    memset(&this->_stAgg, 0, sizeof(OVERALL_STATUS_AGGREGATION));
+    //memset(&this->_stAgg, 0, sizeof(OVERALL_STATUS_AGGREGATION));
+    _aggBuffId = 0xff;
     /* make sequence 0 when offline, to avoid node sequence become old after reboot */
     _stUpdSeq = 0;
 }
 
+uint8_t meshNode::getAggBuffId()
+{
+    return _aggBuffId;
+}
+
+void meshNode::setAggBuffId(uint8_t id)
+{
+    _aggBuffId = id;
+
+}
+
+#if 0
 boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
 {
     uint8_t sequence = 0;
@@ -145,6 +154,7 @@ boolean meshNode::aggregateStatus(byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
         return false;
 
 }
+#endif
 
 int meshNode::checkStatusUpdateSeq(uint8_t sequence)
 {
@@ -158,13 +168,12 @@ int meshNode::checkStatusUpdateSeq(uint8_t sequence)
     return RET_OK;
 }
 
-void meshNode::deviceRegister() 
+void meshNode::deviceRegister(uint8_t *gwMac) 
 {
     uint8 mac[6];
     char nd_mac[13] = {0};
     char gw_mac[13] = {0};
     char dev_addr[5] = {0};
-    char bssid[32] = {0};
     char type[9] = {0};
     char msg[256] = {0};
 
@@ -172,13 +181,11 @@ void meshNode::deviceRegister()
     _deviceMp->mqttSubscribe(_topicRegNoti);
 
     getMacAddress(mac);
-    WiFi.BSSIDstr().toCharArray(bssid, 32, 0);
     DEBUG_DEVICE.printf("get mac %0x%0x%0x%0x%0x%0x\n", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
-    DEBUG_DEVICE.printf("get bssid %s\n", bssid);
 
     sprintf(type, "%04x%04x", this->_type.firstType, this->_type.secondType);
     sprintf(nd_mac, "%02x%02x%02x%02x%02x%02x", mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
-    sprintf(gw_mac, "%02x%02x%02x%02x%02x%02x", _gwMAC[0],_gwMAC[1],_gwMAC[2],_gwMAC[3],_gwMAC[4],_gwMAC[5]);
+    sprintf(gw_mac, "%02x%02x%02x%02x%02x%02x", gwMac[0],gwMac[1],gwMac[2],gwMac[3],gwMac[4],gwMac[5]);
     sprintf(dev_addr, "%04x", this->_devAddr);
     strcat(msg, "{\"type\":\"");
     strcat(msg, type);

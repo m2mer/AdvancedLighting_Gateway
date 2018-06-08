@@ -20,7 +20,8 @@
 
 
 
-#define MESH_NODE_NUM_MAX    64
+#define MESH_NODE_NUM_MAX     64
+#define AGGREGATION_UNIT_NUM  8
 
 
 typedef struct
@@ -36,6 +37,16 @@ typedef struct
     uint8_t registered;
     uint8_t reserved;
 }MESH_NODE_METADATA;
+
+
+typedef struct
+{
+    uint16_t devAddr;
+    uint32_t startTime;
+    OVERALL_STATUS_AGGREGATION agg;
+}AGGREGATION_UNIT;
+
+
 
 template <typename T>
 class advLinkedList:public LinkedList<T> 
@@ -62,6 +73,9 @@ public:
     int delMeshNode(byte *mac);
     int getMeshNodeDevAddr(byte *mac, uint16_t *devAddr);
     int getMeshNodeMAC(uint16_t *devAddr, byte *mac);
+    
+    /* handle mesh message */
+    void receiveUARTmsg(byte *buf, int len);
 
     void setNetworkConfiged(int flag);
     int getNetworkConfged();
@@ -72,10 +86,8 @@ public:
     void resumeMetaData();
     void storeMetaData();
     void metaInfoManage();
-    
-    /* handle mesh message */
-    void receiveUARTmsg(byte *buf, int len);
 
+    void aggBuffManage();
     void loop();
 
 private:
@@ -84,9 +96,14 @@ private:
     //LinkedList<meshNode> _meshNodeList;
     advLinkedList<meshNode> _meshNodeList;
     //meshNode* _meshNodePool[256];    // alternative method to maintain mesh nodes
+    AGGREGATION_UNIT _aggBuff[AGGREGATION_UNIT_NUM];      //8 is ok
+    uint8_t _curAggBuffId;
 
     uint8_t _networkConfiged;
     uint32_t _metaInfoTime;
+    uint32_t _aggBuffMgTime;
+
+    void _init();
 
     /* handle mqtt message */
     int operateDevice(byte* payload, unsigned int length);
@@ -105,7 +122,7 @@ private:
     int _atoi(char a);
     void _getMeshCommandBinary(const char *buf, byte *bin);
     void _packageMeshAgentMsg(char *buf, int len, char *msg);
-
+    boolean aggregateStatus(int buffId, byte *buf, OVERALL_STATUS_AGGREGATION *stAgg);
 };
 
 
