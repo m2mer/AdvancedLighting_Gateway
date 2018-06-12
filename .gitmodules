@@ -4,3 +4,6 @@
 [submodule "lib/LinkedList"]
 	path = lib/LinkedList
 	url = https://github.com/ivanseidel/LinkedList.git
+[submodule "lib/pubsubclient"]
+	path = lib/pubsubclient
+	url = https://github.com/ejngnng/pubsubclient.git
