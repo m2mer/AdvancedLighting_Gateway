@@ -10,3 +10,6 @@
 [submodule "lib/WiFiManager"]
 	path = lib/WiFiManager
 	url = https://github.com/tzapu/WiFiManager.git
+[submodule "lib/NodeDB"]
+	path = lib/NodeDB
+	url = https://github.com/ejngnng/NodeDB.git
