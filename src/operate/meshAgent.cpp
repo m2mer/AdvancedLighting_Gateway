@@ -453,7 +453,7 @@ void meshAgent::recvOverallStatus(uint16_t nodeAddr, byte *buf)
 
             if(aggBuffId != 0xff)
             {
-                if(aggregateStatus(aggBuffId, buf, &stAgg))
+                if(aggregateStatus(&node->data, aggBuffId, buf, &stAgg))
                 {
                     node->data.setMAC(stAgg.status.mac); 
                     node->data.setDeviceType(stAgg.status.firstType, stAgg.status.secondType); 
@@ -494,7 +494,7 @@ void meshAgent::recvOverallStatus(uint16_t nodeAddr, byte *buf)
         if(_aggBuff[i].devAddr == 0)
         {
             nodeP->setAggBuffId(i);
-            aggregateStatus(i, buf, &stAgg);
+            aggregateStatus(nodeP, i, buf, &stAgg);
             _aggBuff[i].devAddr = devAddr;
             _aggBuff[i].startTime = millis();            
             break;
@@ -576,7 +576,7 @@ void meshAgent::recvResetFactory(uint16_t nodeAddr, byte *buf)
             DEBUG_MESH.printf("send state notify to cloud, %s\n", msg);
 
             //TBD, delete node?
-            _meshNodeList.remove(i);
+            //_meshNodeList.remove(i);
         }
     }
 }
@@ -728,7 +728,41 @@ void meshAgent::_packageMeshAgentMsg(char *buf, int len, char *msg)
     DEBUG_DEVICE.printf("gen msg: %s\n", msg);
 }
 
-boolean meshAgent::aggregateStatus(int buffId, byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
+void meshAgent::_checkRepeatNode(byte *mac, uint16_t devAddr)
+{
+    UART_PROTOCOL_DATA protData;
+    MESH_DEVICE_COMMAND_DATA *cmd = NULL;
+    int cnt = _meshNodeList.size();
+    meshNode *node = NULL;
+    byte nodeMac[6] = {0};
+    uint16_t addr = 0;
+    int i;
+
+    for(i=0; i<cnt; i++)
+    {
+        ListNode<meshNode> *nodeList = _meshNodeList.getNodePtr(i);
+        node = &nodeList->data;
+        node->getMacAddress(nodeMac);
+        addr = node->getDevAddr();
+        if(nodeMac[0]==mac[0] && nodeMac[1]==mac[1] && nodeMac[2]==mac[2] &&
+            nodeMac[3]==mac[3] && nodeMac[4]==mac[4] && nodeMac[5]==mac[5] && addr != devAddr)
+        {
+            DEBUG_MESH.printf("mac 0x%02x%02x%02x%02x%02x%02x repeated, remove dev 0x%x\n",
+                mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], addr);
+            
+            break;
+        }
+    }
+
+    /* must after loop , or will cause core dump */
+    if(i < cnt)
+    {
+        _meshNodeList.remove(i);  
+    }
+
+}
+
+boolean meshAgent::aggregateStatus(meshNode *node, int buffId, byte *buf, OVERALL_STATUS_AGGREGATION *stAgg)
 {
     uint8_t sequence = 0;
     uint8_t segment = 0;
@@ -778,11 +812,20 @@ boolean meshAgent::aggregateStatus(int buffId, byte *buf, OVERALL_STATUS_AGGREGA
             agg->status.firstType = statusI->firstType;
             agg->status.secondType = statusI->secondType;
 
+            DEBUG_MESH.printf("mac is 0x%2x, type %d\n", statusI->mac[0], statusI->firstType);
+            DEBUG_MESH.printf("mac is 0x%2x, type %d\n", agg->status.mac[0], agg->status.firstType);
+
+            /* remove repeat meshNode */
+            _checkRepeatNode(agg->status.mac, node->getDevAddr());
+
             /* a new paired node, register to cloud */
             if(sequence == 0)
             {
                 DEBUG_MESH.printf("new node, register to cloud\n");
-                this->deviceRegister();
+                node->setMAC(agg->status.mac); 
+                node->setDeviceType(agg->status.firstType, agg->status.secondType); 
+                node->deviceRegister(_mac);
+                node->setRegisterTime(millis());
             }                                                               
             break;
     }
@@ -845,8 +888,11 @@ void meshAgent::metaInfoManage()
     int storeId = 0;
     uint32_t now = millis();
     int needStore = 0;
+    int cnt = _meshNodeList.size();
+    meshNode *node = NULL;
+    byte nodeMac[6] = {0};
 
-    if((now - _metaInfoTime) < 10000)
+    if((now - _metaInfoTime) < 60000)  //10s
         return; 
 
     _metaInfoTime = now;
@@ -861,9 +907,6 @@ void meshAgent::metaInfoManage()
     else if(_registered == 1 && _registerTime != 0)
         needStore = 1;
 
-    int cnt = _meshNodeList.size();
-    meshNode *node = NULL;
-    byte nodeMac[6] = {0};
     for(int i=0; i<cnt; i++)
     {
         ListNode<meshNode> *nodeList = _meshNodeList.getNodePtr(i);
@@ -871,7 +914,8 @@ void meshAgent::metaInfoManage()
         node->getMacAddress(nodeMac);
 
         /* node need register again */
-        if(nodeMac[0] != 0 && node->getRegistered() == 0 && (now-node->getRegisterTime())> 10000)
+        if((nodeMac[0]+nodeMac[1]+nodeMac[2]+nodeMac[3]+nodeMac[4]+nodeMac[5]) != 0 
+            && node->getRegistered() == 0 && (now-node->getRegisterTime())> 10000)
         {
             node->deviceRegister(_mac);
             node->setRegisterTime(now);
@@ -902,7 +946,7 @@ void meshAgent::aggBuffManage()
     uint32_t now = millis();
     int needStore = 0;
 
-    if((now - _aggBuffMgTime) < 1000)
+    if((now - _aggBuffMgTime) < 2000)
         return; 
 
     _aggBuffMgTime = now;
@@ -910,9 +954,9 @@ void meshAgent::aggBuffManage()
     for(int i=0; i<AGGREGATION_UNIT_NUM; i++)
     {
         if(_aggBuff[i].devAddr != 0 && _aggBuff[i].startTime != 0
-            && (now - _aggBuff[i].startTime > 1000) && _aggBuff[i].agg.segmentMap != 0x03)
+            && (now - _aggBuff[i].startTime > 2000) && _aggBuff[i].agg.segmentMap != 0x03)
             {
-                DEBUG_MESH.printf("node 0x%02x overall_status exceeds 1s, quit aggBuff\n", _aggBuff[i].devAddr);                 
+                DEBUG_MESH.printf("node 0x%02x overall_status exceeds 2s, quit aggBuff\n", _aggBuff[i].devAddr);                 
                 _aggBuff[i].devAddr = 0;
                 _aggBuff[i].startTime = 0;
                 _aggBuff[i].agg.segmentMap = 0;
@@ -932,9 +976,46 @@ void meshAgent::aggBuffManage()
     }
 }
 
+void meshAgent::badNodeManage()
+{
+    UART_PROTOCOL_DATA protData;
+    MESH_DEVICE_COMMAND_DATA *cmd = NULL;
+    int cnt = _meshNodeList.size();
+    meshNode *node = NULL;
+    byte nodeMac[6] = {0};
+    byte invalidMac[6] = {0};
+    uint16_t devAddr = 0;
+    uint32_t now = millis();
+
+    if((now - _badNodeTime) < 2000)
+        return; 
+
+    _badNodeTime = now;
+
+    for(int i=0; i<cnt; i++)
+    {
+        ListNode<meshNode> *nodeList = _meshNodeList.getNodePtr(i);
+        node = &nodeList->data;
+        node->getMacAddress(nodeMac);
+        devAddr = node->getDevAddr();
+
+        /* get overall info for this node */
+        if((nodeMac[0]+nodeMac[1]+nodeMac[2]+nodeMac[3]+nodeMac[4]+nodeMac[5]) == 0)
+        {
+            memset(&protData, 0, sizeof(UART_PROTOCOL_DATA));
+            protData.protType = PROTOCOL_TYPE_OPERATE_MESH_AGENT;
+            cmd = (MESH_DEVICE_COMMAND_DATA*) &protData.protPayload.meshData;
+            cmd->devAddr = devAddr;
+            cmd->meshCmd = LGT_CMD_ADVLIGHT_GET_STATUS;
+
+            _deviceMp->sendUartProtocolData((byte*)&protData);        
+        }
+    }
+}
+
 void meshAgent::loop()
 {
-
+    badNodeManage();
     aggBuffManage();
     heartbeat();
     metaInfoManage();

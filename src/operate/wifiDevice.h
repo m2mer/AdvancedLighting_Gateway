@@ -14,7 +14,6 @@
 
 
 #include <Arduino.h>
-#include "../lib/LinkedList/LinkedList.h"
 
 
 #include "smartDevice.h"

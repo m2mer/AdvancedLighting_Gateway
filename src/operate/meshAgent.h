@@ -87,6 +87,7 @@ public:
     void storeMetaData();
     void metaInfoManage();
 
+    void badNodeManage();
     void aggBuffManage();
     void loop();
 
@@ -102,6 +103,7 @@ private:
     uint8_t _networkConfiged;
     uint32_t _metaInfoTime;
     uint32_t _aggBuffMgTime;
+    uint32_t _badNodeTime;
 
     void _init();
 
@@ -122,7 +124,8 @@ private:
     int _atoi(char a);
     void _getMeshCommandBinary(const char *buf, byte *bin);
     void _packageMeshAgentMsg(char *buf, int len, char *msg);
-    boolean aggregateStatus(int buffId, byte *buf, OVERALL_STATUS_AGGREGATION *stAgg);
+    boolean aggregateStatus(meshNode *node, int buffId, byte *buf, OVERALL_STATUS_AGGREGATION *stAgg);
+    void _checkRepeatNode(byte *mac, uint16_t devAddr);
 };
 
 

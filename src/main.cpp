@@ -105,6 +105,7 @@ void setup() {
     localDevice.setMAC(mac);
     localDevice.setDeviceManipulator(&deviceMp);
 
+    //WifiMg.clearEEPROM();
     /* fetch data from flash */
     flashDataResume();
     localDevice.setNetworkConfiged(localMetadata.networkConfiged);
