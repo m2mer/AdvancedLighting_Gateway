@@ -31,11 +31,11 @@
 #define         LGT_CMD_ADVLIGHT_PAIRED_NOTIFY      0x3a
 #define         LGT_CMD_ADVLIGHT_RESET_FACTORY      0x3b
 
-
+#define 		MESH_COMMAND_PARA_MAX				7
 
 typedef struct {
 	uint8_t funcType;
-	uint8_t funcPara[5];           //compatible for heelight command
+	uint8_t funcPara[MESH_COMMAND_PARA_MAX];
 }MESH_COMMAND_OPERATION;
 
 typedef struct {

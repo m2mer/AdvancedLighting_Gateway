@@ -121,6 +121,27 @@ int meshAgent::getMeshNodeDevAddr(byte *mac, uint16_t *devAddr)
 }
 
 /* 
+ * sync rtc time to device
+ * send to peer mesh agent through uart
+ * 
+ */
+void meshAgent::syncDeviceTime(uint16_t devAddr)
+{
+    MESH_DEVICE_COMMAND_DATA *cmd;
+    UART_PROTOCOL_DATA protData;
+
+    memset(&protData, 0, sizeof(UART_PROTOCOL_DATA));
+    protData.protType = PROTOCOL_TYPE_OPERATE_MESH_AGENT;
+    cmd = &protData.protPayload.meshData; 
+    cmd->meshCmd = LGT_CMD_ADVLIGHT_DEVICE_OP;
+    cmd->devAddr = devAddr;
+    cmd->cmdPara.operation.funcType = MESH_DEVICE_FUNCTION_TIMER_SET;
+    memcpy(cmd->cmdPara.operation.funcPara, &this->_rtc, MESH_COMMAND_PARA_MAX);
+
+    _deviceMp->sendUartProtocolData((byte*)&protData); 
+}
+
+/* 
  * get_status
  * convert MESH_DEVICE_GET_STATUS to MESH_DEVICE_COMMAND_DATA,
  * send to peer mesh agent through uart
@@ -255,7 +276,7 @@ int meshAgent::operateDevice(byte* payload, unsigned int length)
         cmd->meshCmd = packet->command;
         cmd->devAddr = devAddr;
         cmd->cmdPara.operation.funcType = packet->funcType;
-        memcpy(cmd->cmdPara.operation.funcPara, packet->funcPara, 5);
+        memcpy(cmd->cmdPara.operation.funcPara, packet->funcPara, MESH_COMMAND_PARA_MAX);
 
         debug = (byte*) cmd;
         for(int i=0; i<12; i++)

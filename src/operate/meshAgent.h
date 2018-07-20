@@ -26,6 +26,16 @@
 
 typedef struct
 {
+    uint16_t year;
+    uint8_t month;
+    uint8_t day;
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t second;
+}MESH_AGENT_RTC;
+
+typedef struct
+{
     uint8_t networkConfiged;
     uint8_t registered;
 }MESH_AGENT_METADATA;
@@ -93,6 +103,7 @@ public:
 
 private:
 
+    MESH_AGENT_RTC _rtc;
     uint8_t _meshMAC[6];
     //LinkedList<meshNode> _meshNodeList;
     advLinkedList<meshNode> _meshNodeList;
@@ -121,6 +132,8 @@ private:
     void recvResetFactory(uint16_t nodeAddr, byte *buf);
     void recvPairedNotify(uint16_t nodeAddr, byte *buf);
 
+    /* */
+    void syncDeviceTime(uint16_t devAddr);
     int _atoi(char a);
     void _getMeshCommandBinary(const char *buf, byte *bin);
     void _packageMeshAgentMsg(char *buf, int len, char *msg);
