@@ -13,3 +13,6 @@
 [submodule "lib/NodeDB"]
 	path = lib/NodeDB
 	url = https://github.com/ejngnng/NodeDB.git
+[submodule "lib/NTPClient"]
+	path = lib/NTPClient
+	url = https://github.com/arduino-libraries/NTPClient.git

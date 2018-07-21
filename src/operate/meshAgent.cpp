@@ -13,6 +13,15 @@
 #include "meshCommandPacket.h"
 #include "uartProtocolPacket.h"
 
+/* ntp header */
+#include <ESP8266WiFi.h>
+#include <WiFiUdp.h>
+#include <NTPClient.h>
+#include <time.h>
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, 28800);
+struct tm *t;
 
 template<typename T>
 ListNode<T>* advLinkedList<T>::getNodePtr(int index)
@@ -33,6 +42,17 @@ void meshAgent::_init()
 {
     setDeviceType(SMART_DEVICE_TYPE_MESH_GATEWAY, SMART_SERVICE_DEFAULT); 
     memset(_aggBuff, 0, sizeof(AGGREGATION_UNIT)*8);
+
+    timeClient.begin();
+    time_t rawtime = timeClient.getEpochTime();
+    t = localtime(&rawtime);
+    this->_rtc.year = t->tm_year + 1900;
+    this->_rtc.month = t->tm_mon + 1;
+    this->_rtc.date = t->tm_mday;
+    this->_rtc.day = timeClient.getDay();
+    this->_rtc.hour = timeClient.getHours();
+    this->_rtc.minute = timeClient.getMinutes();
+    this->_rtc.second = timeClient.getSeconds();
 }
 
 boolean meshAgent::isMeshNodeExist(byte *mac)
@@ -1040,4 +1060,5 @@ void meshAgent::loop()
     aggBuffManage();
     heartbeat();
     metaInfoManage();
+    timeClient.update();
 }
