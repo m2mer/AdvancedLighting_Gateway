@@ -58,7 +58,7 @@ void UARTdriver::rxProcess()
 }
 
 
-int UARTdriver::write(const char *buf, int len) {
+int UARTdriver::write(const uint8_t *buf, int len) {
 
     return _Serial->write(buf, len);
 }

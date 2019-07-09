@@ -24,7 +24,7 @@ class UARTdriver {
 
         void setRxHdl(uartRxHdl hdl);
         void loop();
-        int write(const char *buf, int len);
+        int write(const uint8_t *buf, int len);
     
     private:
         HardwareSerial* _Serial;
